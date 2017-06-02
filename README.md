@@ -8,7 +8,7 @@
 Telegram relay module for WildPHP.
 
 ## System Requirements
-If your setup can run the main bot, it can run this module as well.
+If your setup can run the main bot, it can run this module as well. For the file server, a system is needed with sufficient disk space to host a very small webserver (will grow over time).
 
 ## Installation
 To install this module, we will use `composer`:
