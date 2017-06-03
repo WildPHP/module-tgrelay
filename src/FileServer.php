@@ -61,7 +61,12 @@ class FileServer
 		});
 	}
 
-	public function makeFileStructure(string $idHash)
+	/**
+	 * @param string $idHash
+	 *
+	 * @return string
+	 */
+	public function makeFileStructure(string $idHash): string
 	{
 		$basePath = WPHP_ROOT_DIR . '/tgstorage';
 
@@ -84,7 +89,7 @@ class FileServer
 		return $basePath . '/' . $idHash;
 	}
 
-	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = ''): \GuzzleHttp\Psr7\Response
+	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = ''): PromiseInterface
 	{
 		$file_url = 'https://api.telegram.org/file/bot' . $botID . '/' . $path;
 
@@ -103,6 +108,6 @@ class FileServer
 			'timeout' => 3.0
 		]);
 		$fileURIPath = $hashID . '/' . $path;
-		return $guzzleClient->request('GET', $file_url, ['sink' => $fileResource, 'curl' => [CURLOPT_SSL_VERIFYPEER => false]]);
+		return $guzzleClient->requestAsync('GET', $file_url, ['sink' => $fileResource, 'curl' => [CURLOPT_SSL_VERIFYPEER => false]]);
 	}
 }

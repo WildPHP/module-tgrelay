@@ -62,15 +62,27 @@ class TGRelay
 	 */
 	protected $uri = '';
 
+	protected $self;
+
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
 
-		$channelMap = Configuration::fromContainer($container)->get('telegram.channels')->getValue();
-		$botID = Configuration::fromContainer($container)->get('telegram.botID')->getValue();
-		$baseUri = Configuration::fromContainer($container)->get('telegram.uri')->getValue();
-		$port = Configuration::fromContainer($container)->get('telegram.port')->getValue();
-		$listenOn = Configuration::fromContainer($container)->get('telegram.listenOn')->getValue();
+		$channelMap = Configuration::fromContainer($container)
+			->get('telegram.channels')
+			->getValue();
+		$botID = Configuration::fromContainer($container)
+			->get('telegram.botID')
+			->getValue();
+		$baseUri = Configuration::fromContainer($container)
+			->get('telegram.uri')
+			->getValue();
+		$port = Configuration::fromContainer($container)
+			->get('telegram.port')
+			->getValue();
+		$listenOn = Configuration::fromContainer($container)
+			->get('telegram.listenOn')
+			->getValue();
 
 		$collection = new Collection(TelegramLink::class);
 		$this->setChannelMap($collection);
@@ -87,15 +99,20 @@ class TGRelay
 		$fileServer = new FileServer($this->getContainer(), $port, $listenOn);
 		$this->setFileServer($fileServer);
 		$tgBot = new Telegram($botID);
+		$this->self = $tgBot->getMe()['result'];
 
 		$this->setBotObject($tgBot);
 
 		$task = new Task([$this, 'fetchTelegramMessages'], 1, [$container], 1);
-		TaskController::fromContainer($container)->addTask($task);
+		TaskController::fromContainer($container)
+			->addTask($task);
 
-		EventEmitter::fromContainer($container)->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
-		EventEmitter::fromContainer($container)->on('irc.line.out.privmsg', [$this, 'processIrcMessage']);
-		EventEmitter::fromContainer($container)->on('telegram.msg.in', [$this, 'processTelegramMessage']);
+		EventEmitter::fromContainer($container)
+			->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
+		EventEmitter::fromContainer($container)
+			->on('irc.line.out.privmsg', [$this, 'processIrcMessage']);
+		EventEmitter::fromContainer($container)
+			->on('telegram.msg.in', [$this, 'processTelegramMessage']);
 
 		new TGCommands($container);
 	}
@@ -104,19 +121,22 @@ class TGRelay
 	{
 		$telegram = $this->getBotObject();
 		$req = $telegram->getUpdates();
-		for ($i = 0; $i < $telegram->UpdateCount(); $i++) {
+		for ($i = 0; $i < $telegram->UpdateCount(); $i++)
+		{
 			// You NEED to call serveUpdate before accessing the values of message in Telegram Class
 			$telegram->serveUpdate($i);
 			$chat_id = $telegram->ChatID();
 			$username = $telegram->Username();
 
-			Logger::fromContainer($container)->debug('Received message from Telegram', [
-				'chatID' => $chat_id,
-				'username' => $username,
-				'type' => $this->getMessageContentType($telegram)
-			]);
+			Logger::fromContainer($container)
+				->debug('Received message from Telegram', [
+					'chatID' => $chat_id,
+					'username' => $username,
+					'type' => $this->getMessageContentType($telegram)
+				]);
 
-			EventEmitter::fromContainer($container)->emit('telegram.msg.in', [$chat_id, $username, $telegram]);
+			EventEmitter::fromContainer($container)
+				->emit('telegram.msg.in', [$chat_id, $username, $telegram]);
 		}
 	}
 
@@ -124,25 +144,48 @@ class TGRelay
 	{
 		$data = $telegram->getData()['message'];
 		$content = array_slice($data, -1);
+
 		return array_keys($content)[0];
 	}
 
 	/**
 	 * @param int|float $chat_id
-	 * @param string $username
+	 * @param string|null $username
 	 * @param Telegram $telegram
 	 */
-	public function processTelegramMessage($chat_id, string $username, Telegram $telegram)
+	public function processTelegramMessage($chat_id, $username, Telegram $telegram)
 	{
-		if (!($channel = $this->findChannelForID($chat_id)))
+		if (empty($chat_id) || empty($username))
 			return;
+
+		if (!($channel = $this->findChannelForID($chat_id)))
+		{
+			Logger::fromContainer($this->getContainer())
+				->warning('[Telegram] Received message, but no channel is linked to the chat ID', [
+					'chat_id' => $chat_id
+				]);
+
+			return;
+		}
 
 		switch ($this->getMessageContentType($telegram))
 		{
 			case 'text':
 				$text = $telegram->getData()['message']['text'];
+				$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
+				if (array_key_exists('reply_to_message', $telegram->getData()['message']))
+				{
+					$reply = $telegram->getData()['message']['reply_to_message'];
+					$replyUsername = $reply['from']['username'];
+					var_dump($this->self);
+					if ($replyUsername == $this->self['username'])
+						$replyUsername = $this->parseIrcUsername($reply['text']);
+
+					$text = '@' . $replyUsername . ': ' . $text;
+				}
 				$message = '[TG] <' . $username . '> ' . $text;
-				Queue::fromContainer($this->getContainer())->privmsg($channel, $message);
+				Queue::fromContainer($this->getContainer())
+					->privmsg($channel, $message);
 				break;
 
 			case 'photo':
@@ -157,10 +200,12 @@ class TGRelay
 
 				$uri = '';
 				if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-					$this->getFileServer()->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
+					$this->getFileServer()
+						->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
 				$uri = $this->getUri() . $uri;
 				$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri;
-				Queue::fromContainer($this->getContainer())->privmsg($channel, $message);
+				Queue::fromContainer($this->getContainer())
+					->privmsg($channel, $message);
 
 				break;
 
@@ -170,15 +215,22 @@ class TGRelay
 				$length = $telegram->getData()['message']['entities'][0]['length'];
 
 				$text = $telegram->getData()['message']['text'];
+
+				if (substr($text, 0, 1) != '/')
+					break;
+
 				$command = trim(substr($text, $offset + 1, $length));
 				$arguments = array_filter(explode(' ', trim(substr($text, $length))));
 
-				EventEmitter::fromContainer($this->getContainer())->emit('telegram.command', [$command, $telegram, $chat_id, $arguments, $channel, $username]);
-				EventEmitter::fromContainer($this->getContainer())->emit('telegram.command.' . $command, [$telegram, $chat_id, $arguments, $channel, $username]);
-				Logger::fromContainer($this->getContainer())->debug('Command found', [
-					'command' => $command,
-					'args' => $arguments
-				]);
+				EventEmitter::fromContainer($this->getContainer())
+					->emit('telegram.command', [$command, $telegram, $chat_id, $arguments, $channel, $username]);
+				EventEmitter::fromContainer($this->getContainer())
+					->emit('telegram.command.' . $command, [$telegram, $chat_id, $arguments, $channel, $username]);
+				Logger::fromContainer($this->getContainer())
+					->debug('Command found', [
+						'command' => $command,
+						'args' => $arguments
+					]);
 				break;
 
 			case 'document':
@@ -195,18 +247,21 @@ class TGRelay
 
 				$uri = '';
 				if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-					$this->getFileServer()->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
+					$this->getFileServer()
+						->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
 				$uri = $this->getUri() . $uri;
 				$message = '[TG] ' . $username . ' uploaded a file: ' . $uri;
-				Queue::fromContainer($this->getContainer())->privmsg($channel, $message);
+				Queue::fromContainer($this->getContainer())
+					->privmsg($channel, $message);
 
 				break;
 
 			default:
-				Logger::fromContainer($this->getContainer())->warning('Message type not implemented!', [
-					'type' => $this->getMessageContentType($telegram),
-					'data' => $telegram->getData()
-				]);
+				Logger::fromContainer($this->getContainer())
+					->warning('Message type not implemented!', [
+						'type' => $this->getMessageContentType($telegram),
+						'data' => $telegram->getData()
+					]);
 		}
 	}
 
@@ -288,6 +343,21 @@ class TGRelay
 			return false;
 
 		return $link->getChannel();
+	}
+
+	/**
+	 * @param string $text
+	 *
+	 * @return bool|string
+	 */
+	public function parseIrcUsername(string $text)
+	{
+		$result = preg_match('/<(\S+)>/', $text, $matches);
+
+		if ($result == false)
+			return false;
+
+		return $matches[1];
 	}
 
 	/**
