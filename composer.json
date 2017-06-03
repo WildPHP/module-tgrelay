@@ -14,7 +14,7 @@
     },
     "autoload": {
         "psr-4": {
-            "WildPHP\\Modules\\RussianRoulette\\": "src"
+            "WildPHP\\Modules\\TGRelay\\": "src"
         }
     },
     "minimum-stability": "alpha",
