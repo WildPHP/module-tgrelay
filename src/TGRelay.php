@@ -20,8 +20,6 @@
 namespace WildPHP\Modules\TGRelay;
 
 use Collections\Collection;
-use Evenement\Tests\EventEmitterTest;
-use SebastianBergmann\CodeCoverage\Node\File;
 use Telegram;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;

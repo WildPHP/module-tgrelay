@@ -33,7 +33,6 @@ use Psr\Http\Message\ServerRequestInterface;
 use React\Http\Response;
 use React\Socket\Server;
 use WildPHP\Core\ComponentContainer;
-use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\Logger\Logger;
 
@@ -46,7 +45,7 @@ class FileServer
 		$this->setContainer($container);
 		$socket = new Server($listenOn . ':' . $port, $container->getLoop());
 
-		$http = new \React\Http\Server($socket, function (ServerRequestInterface $request) {
+		$http = new \React\Http\Server(function (ServerRequestInterface $request) {
 			$path = $request->getUri()->getPath();
 			$path = WPHP_ROOT_DIR . 'tgstorage/' . $path;
 
@@ -59,6 +58,7 @@ class FileServer
 				file_get_contents($path)
 			);
 		});
+		$http->listen($socket);
 	}
 
 	/**
