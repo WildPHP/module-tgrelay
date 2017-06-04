@@ -89,7 +89,7 @@ class FileServer
 		return $basePath . '/' . $idHash;
 	}
 
-	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = ''): PromiseInterface
+	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = '')
 	{
 		$file_url = 'https://api.telegram.org/file/bot' . $botID . '/' . $path;
 
