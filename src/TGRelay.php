@@ -108,8 +108,6 @@ class TGRelay
 		EventEmitter::fromContainer($container)
 			->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
 		EventEmitter::fromContainer($container)
-			->on('irc.line.out.privmsg', [$this, 'processIrcMessage']);
-		EventEmitter::fromContainer($container)
 			->on('telegram.msg.in', [$this, 'processTelegramMessage']);
 
 		new TGCommands($container);
@@ -124,6 +122,10 @@ class TGRelay
 			// You NEED to call serveUpdate before accessing the values of message in Telegram Class
 			$telegram->serveUpdate($i);
 			$chat_id = $telegram->ChatID();
+
+			if (is_null($chat_id))
+				continue;
+
 			$username = $telegram->Username();
 
 			Logger::fromContainer($container)
@@ -166,92 +168,24 @@ class TGRelay
 			return;
 		}
 
-		switch ($this->getMessageContentType($telegram))
+		switch (($type = $this->getMessageContentType($telegram)))
 		{
 			case 'text':
-				$text = $telegram->getData()['message']['text'];
-				$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
-				if (array_key_exists('reply_to_message', $telegram->getData()['message']))
-				{
-					$reply = $telegram->getData()['message']['reply_to_message'];
-					$replyUsername = $reply['from']['username'];
-					var_dump($this->self);
-					if ($replyUsername == $this->self['username'])
-						$replyUsername = $this->parseIrcUsername($reply['text']);
-
-					$text = '@' . $replyUsername . ': ' . $text;
-				}
-				$message = '[TG] <' . $username . '> ' . $text;
-				Queue::fromContainer($this->getContainer())
-					->privmsg($channel, $message);
-				break;
-
-			case 'photo':
-				$fileID = end($telegram->getData()['message'][$this->getMessageContentType($telegram)])['file_id'];
-				$fileData = $telegram->getFile($fileID);
-
-				if (!empty($fileData['error_code']))
-					return;
-
-				$path = $fileData['result']['file_path'];
-				$idHash = sha1($chat_id);
-
-				$uri = '';
-				if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-					$this->getFileServer()
-						->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
-				$uri = $this->getUri() . $uri;
-				$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri;
-				Queue::fromContainer($this->getContainer())
-					->privmsg($channel, $message);
-
+				$this->processText($telegram, $chat_id, $channel, $username);
 				break;
 
 			case 'entities':
-				// Add 1 to strip the slash
-				$offset = $telegram->getData()['message']['entities'][0]['offset'];
-				$length = $telegram->getData()['message']['entities'][0]['length'];
+				$this->processEntities($telegram, $chat_id, $channel, $username);
+				break;
 
-				$text = $telegram->getData()['message']['text'];
-
-				if (substr($text, 0, 1) != '/')
-					break;
-
-				$command = trim(substr($text, $offset + 1, $length));
-				$arguments = array_filter(explode(' ', trim(substr($text, $length))));
-
-				EventEmitter::fromContainer($this->getContainer())
-					->emit('telegram.command', [$command, $telegram, $chat_id, $arguments, $channel, $username]);
-				EventEmitter::fromContainer($this->getContainer())
-					->emit('telegram.command.' . $command, [$telegram, $chat_id, $arguments, $channel, $username]);
-				Logger::fromContainer($this->getContainer())
-					->debug('Command found', [
-						'command' => $command,
-						'args' => $arguments
-					]);
+			case 'photo':
+				$this->processPhoto($telegram, $chat_id, $channel, $username);
 				break;
 
 			case 'document':
 			case 'voice':
 			case 'sticker':
-				$fileID = $telegram->getData()['message'][$this->getMessageContentType($telegram)]['file_id'];
-				$fileData = $telegram->getFile($fileID);
-
-				if (!empty($fileData['error_code']))
-					return;
-
-				$path = $fileData['result']['file_path'];
-				$idHash = sha1($chat_id);
-
-				$uri = '';
-				if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-					$this->getFileServer()
-						->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
-				$uri = $this->getUri() . $uri;
-				$message = '[TG] ' . $username . ' uploaded a file: ' . $uri;
-				Queue::fromContainer($this->getContainer())
-					->privmsg($channel, $message);
-
+				$this->processGenericFile($telegram, $chat_id, $channel, $username);
 				break;
 
 			default:
@@ -261,6 +195,93 @@ class TGRelay
 						'data' => $telegram->getData()
 					]);
 		}
+	}
+
+	public function processGenericFile(\Telegram $telegram, $chat_id, string $channel, string $username)
+	{
+		$fileID = $telegram->getData()['message'][$this->getMessageContentType($telegram)]['file_id'];
+		$fileData = $telegram->getFile($fileID);
+
+		if (!empty($fileData['error_code']))
+			return;
+
+		$path = $fileData['result']['file_path'];
+		$idHash = sha1($chat_id);
+
+		$uri = '';
+		if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
+			$this->getFileServer()
+				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
+		$uri = $this->getUri() . $uri;
+		$message = '[TG] ' . $username . ' uploaded a file: ' . $uri;
+		Queue::fromContainer($this->getContainer())
+			->privmsg($channel, $message);
+	}
+
+	public function processPhoto(\Telegram $telegram, $chat_id, string $channel, string $username)
+	{
+		$fileID = end($telegram->getData()['message'][$this->getMessageContentType($telegram)])['file_id'];
+		$fileData = $telegram->getFile($fileID);
+
+		if (!empty($fileData['error_code']))
+			return;
+
+		$path = $fileData['result']['file_path'];
+		$idHash = sha1($chat_id);
+
+		$uri = '';
+		if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
+			$this->getFileServer()
+				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
+		$uri = $this->getUri() . $uri;
+		$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri;
+		Queue::fromContainer($this->getContainer())
+			->privmsg($channel, $message);
+	}
+
+	public function processEntities(\Telegram $telegram, $chat_id, string $channel, string $username)
+	{
+		$text = $telegram->getData()['message']['text'];
+		$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
+
+		$offset = $telegram->getData()['message']['entities'][0]['offset'];
+		$length = $telegram->getData()['message']['entities'][0]['length'];
+
+		$command = trim(substr($text, $offset + 1, $length));
+		$arguments = array_filter(explode(' ', trim(substr($text, $length))));
+		EventEmitter::fromContainer($this->getContainer())
+			->emit('telegram.command', [$command, $telegram, $chat_id, $arguments, $channel, $username]);
+		EventEmitter::fromContainer($this->getContainer())
+			->emit('telegram.command.' . $command, [$telegram, $chat_id, $arguments, $channel, $username]);
+		Logger::fromContainer($this->getContainer())
+			->debug('[Telegram] Command found', [
+				'command' => $command,
+				'args' => $arguments
+			]);
+
+		if (!empty(EventEmitter::fromContainer($this->getContainer())->listeners('telegram.command.' . $command)))
+			return;
+
+		$this->processText($telegram, $chat_id, $channel, $username);
+	}
+
+	public function processText(\Telegram $telegram, $chat_id, string $channel, string $username)
+	{
+		$text = $telegram->getData()['message']['text'];
+		$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
+
+		if (array_key_exists('reply_to_message', $telegram->getData()['message']))
+		{
+			$reply = $telegram->getData()['message']['reply_to_message'];
+			$replyUsername = $reply['from']['username'];
+			if ($replyUsername == $this->self['username'])
+				$replyUsername = $this->parseIrcUsername($reply['text']);
+
+			$text = '@' . $replyUsername . ': ' . $text;
+		}
+		$message = '[TG] <' . $username . '> ' . $text;
+		Queue::fromContainer($this->getContainer())
+			->privmsg($channel, $message);
 	}
 
 	public function processIrcMessage(PRIVMSG $ircMessage)
