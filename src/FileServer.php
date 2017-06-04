@@ -108,6 +108,6 @@ class FileServer
 			'timeout' => 3.0
 		]);
 		$fileURIPath = $hashID . '/' . $path;
-		return $guzzleClient->requestAsync('GET', $file_url, ['sink' => $fileResource, 'curl' => [CURLOPT_SSL_VERIFYPEER => false]]);
+		return $guzzleClient->request('GET', $file_url, ['sink' => $fileResource, 'curl' => [CURLOPT_SSL_VERIFYPEER => false]]);
 	}
 }
