@@ -286,11 +286,22 @@ class TGRelay
 
 	public function processIrcMessage(PRIVMSG $ircMessage)
 	{
+		if ($ircMessage->isCtcp())
+			Logger::fromContainer($this->getContainer())->debug('CTCP found!', [
+				'nickname' => $ircMessage->getNickname(),
+				'verb' => $ircMessage->getCtcpVerb(),
+				'args' => $ircMessage->getMessage()
+			]);
+
 		if (!($chat_id = $this->findIDForChannel($ircMessage->getChannel())))
 			return;
 
 		$telegram = $this->getBotObject();
-		$message = '<' . $ircMessage->getNickname() . '> ' . $ircMessage->getMessage();
+		if ($ircMessage->isCtcp() && $ircMessage->getCtcpVerb() == 'ACTION')
+			$message = '*' . $ircMessage->getNickname() . ' ' . $ircMessage->getMessage() . '*';
+		else
+			$message = '<' . $ircMessage->getNickname() . '> ' . $ircMessage->getMessage();
+
 		$telegram->sendMessage(['chat_id' => $chat_id, 'text' => $message]);
 	}
 
@@ -371,10 +382,14 @@ class TGRelay
 	 */
 	public function parseIrcUsername(string $text)
 	{
-		$result = preg_match('/<(\S+)>/', $text, $matches);
+		var_dump($text);
+		// This accounts for both normal messages and CTCP ACTION ones.
+		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $text, $matches);
 
 		if ($result == false)
 			return false;
+
+		$matches = array_values(array_filter($matches));
 
 		return $matches[1];
 	}
