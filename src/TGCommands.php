@@ -35,6 +35,7 @@ class TGCommands
 		$this->setContainer($container);
 		$events = [
 			'commandCommand' => 'telegram.command.command',
+			'meCommand' => 'telegram.command.me',
 		];
 
 		foreach ($events as $callback => $event)
@@ -51,5 +52,13 @@ class TGCommands
 		$msg1 = '[TG] ' . $username . ' issued command: ' . $command;
 		Queue::fromContainer($this->getContainer())->privmsg($channel, $msg1);
 		Queue::fromContainer($this->getContainer())->privmsg($channel, $command);
+	}
+
+	public function meCommand(\Telegram $telegram, $chat_id, array $args, string $channel, string $username)
+	{
+		$command = implode(' ', $args);
+
+		$msg = '[TG] *' . $username . ' ' . $command . '*';
+		Queue::fromContainer($this->getContainer())->privmsg($channel, $msg);
 	}
 }
