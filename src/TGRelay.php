@@ -382,7 +382,6 @@ class TGRelay
 	 */
 	public function parseIrcUsername(string $text)
 	{
-		var_dump($text);
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $text, $matches);
 
