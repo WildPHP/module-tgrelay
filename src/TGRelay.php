@@ -158,15 +158,7 @@ class TGRelay
 		if (empty($chat_id) || empty($username))
 			return;
 
-		if (!($channel = $this->findChannelForID($chat_id)))
-		{
-			Logger::fromContainer($this->getContainer())
-				->warning('[Telegram] Received message, but no channel is linked to the chat ID', [
-					'chat_id' => $chat_id
-				]);
-
-			return;
-		}
+		$channel = $this->findChannelForID($chat_id);
 
 		switch (($type = $this->getMessageContentType($telegram)))
 		{
@@ -199,6 +191,9 @@ class TGRelay
 
 	public function processGenericFile(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
+		if (empty($channel))
+			return;
+
 		$fileID = $telegram->getData()['message'][$this->getMessageContentType($telegram)]['file_id'];
 		$fileData = $telegram->getFile($fileID);
 
@@ -220,6 +215,9 @@ class TGRelay
 
 	public function processPhoto(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
+		if (empty($channel))
+			return;
+
 		$fileID = end($telegram->getData()['message'][$this->getMessageContentType($telegram)])['file_id'];
 		$fileData = $telegram->getFile($fileID);
 
@@ -267,6 +265,9 @@ class TGRelay
 
 	public function processText(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
+		if (empty($channel))
+			return;
+
 		$text = $telegram->getData()['message']['text'];
 		$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
 
