@@ -90,33 +90,20 @@ class TGRelay
 		$baseUri = Configuration::fromContainer($container)
 			->get('telegram.uri')
 			->getValue();
-		$port = Configuration::fromContainer($container)
-			->get('telegram.port')
-			->getValue();
-		$listenOn = Configuration::fromContainer($container)
-			->get('telegram.listenOn')
-			->getValue();
-
-		$collection = new Collection(TelegramLink::class);
-		$this->setChannelMap($collection);
-
-		if (!empty($channelMap))
-			foreach ($channelMap as $chatID => $channel)
-			{
-				$linkObject = new TelegramLink();
-				$linkObject->setChatID($chatID);
-				$linkObject->setChannel($channel);
-				$collection->add($linkObject);
-			}
 
 		$this->setBotID($botID);
 		$this->setUri($baseUri . '/');
-		$fileServer = new FileServer($this->getContainer(), $port, $listenOn);
-		$this->setFileServer($fileServer);
 		$tgBot = new Telegram($botID);
 		$this->self = $tgBot->getMe()['result'];
 
 		$this->setBotObject($tgBot);
+		$this->setupChannelMap($channelMap);
+		$this->setupFileServer();
+
+		new TGCommands($container);
+
+		$commandHandler = new TGCommandHandler($container, new Dictionary());
+		$container->store($commandHandler);
 
 		$task = new Task([$this, 'fetchTelegramMessages'], 1, [$container], 1);
 		TaskController::fromContainer($container)
@@ -134,13 +121,44 @@ class TGRelay
 				Logger::fromContainer($this->getContainer())->debug('Setting refusal flag to false');
 				$this->refuseMessages = false;
 			});
-		$commandHandler = new TGCommandHandler($container, new Dictionary());
-		$container->store($commandHandler);
 
-		new TGCommands($container);
+		EventEmitter::fromContainer($container)
+			->on('wildphp.init-modules.after', function () use ($commandHandler, $container)
+			{
+				// Emit an event to let other modules know that commands can be added.
+				EventEmitter::fromContainer($container)->emit('telegram.commands.add', [$commandHandler]);
+			});
+	}
 
-		// Emit an event to let other modules know that commands can be added.
-		EventEmitter::fromContainer($container)->emit('telegram.commands.add', [$commandHandler]);
+	/**
+	 * @param array $channelMap
+	 */
+	public function setupChannelMap(array $channelMap)
+	{
+		$collection = new Collection(TelegramLink::class);
+		$this->setChannelMap($collection);
+
+		if (!empty($channelMap))
+			foreach ($channelMap as $chatID => $channel)
+			{
+				$linkObject = new TelegramLink();
+				$linkObject->setChatID($chatID);
+				$linkObject->setChannel($channel);
+				$collection->add($linkObject);
+			}
+	}
+
+	public function setupFileServer()
+	{
+		$port = Configuration::fromContainer($this->getContainer())
+			->get('telegram.port')
+			->getValue();
+		$listenOn = Configuration::fromContainer($this->getContainer())
+			->get('telegram.listenOn')
+			->getValue();
+
+		$fileServer = new FileServer($this->getContainer(), $port, $listenOn);
+		$this->setFileServer($fileServer);
 	}
 
 	/**
