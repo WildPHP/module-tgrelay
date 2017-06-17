@@ -20,6 +20,7 @@
 namespace WildPHP\Modules\TGRelay;
 
 use Collections\Collection;
+use Collections\Dictionary;
 use Telegram;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
@@ -60,12 +61,26 @@ class TGRelay
 	 */
 	protected $uri = '';
 
+	/**
+	 * @var array
+	 */
 	protected $self;
 
+	/**
+	 * Avoid spamming channels when the bot joins them and refuse to parse new messages when starting up.
+	 *
+	 * @var bool
+	 */
+	protected $refuseMessages = true;
+
+	/**
+	 * TGRelay constructor.
+	 *
+	 * @param ComponentContainer $container
+	 */
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
-
 		$channelMap = Configuration::fromContainer($container)
 			->get('telegram.channels')
 			->getValue();
@@ -84,13 +99,15 @@ class TGRelay
 
 		$collection = new Collection(TelegramLink::class);
 		$this->setChannelMap($collection);
-		foreach ($channelMap as $chatID => $channel)
-		{
-			$linkObject = new TelegramLink();
-			$linkObject->setChatID($chatID);
-			$linkObject->setChannel($channel);
-			$collection->add($linkObject);
-		}
+
+		if (!empty($channelMap))
+			foreach ($channelMap as $chatID => $channel)
+			{
+				$linkObject = new TelegramLink();
+				$linkObject->setChatID($chatID);
+				$linkObject->setChannel($channel);
+				$collection->add($linkObject);
+			}
 
 		$this->setBotID($botID);
 		$this->setUri($baseUri . '/');
@@ -110,13 +127,30 @@ class TGRelay
 		EventEmitter::fromContainer($container)
 			->on('telegram.msg.in', [$this, 'processTelegramMessage']);
 
+		// Unlock the refusal flag
+		EventEmitter::fromContainer($container)
+			->on('irc.line.in.001', function () use ($container)
+			{
+				Logger::fromContainer($this->getContainer())->debug('Setting refusal flag to false');
+				$this->refuseMessages = false;
+			});
+		$commandHandler = new TGCommandHandler($container, new Dictionary());
+		$container->store($commandHandler);
+
 		new TGCommands($container);
+
+		// Emit an event to let other modules know that commands can be added.
+		EventEmitter::fromContainer($container)->emit('telegram.commands.add', [$commandHandler]);
 	}
 
+	/**
+	 * @param Task $task
+	 * @param ComponentContainer $container
+	 */
 	public function fetchTelegramMessages(Task $task, ComponentContainer $container)
 	{
 		$telegram = $this->getBotObject();
-		$req = $telegram->getUpdates();
+		$telegram->getUpdates();
 		for ($i = 0; $i < $telegram->UpdateCount(); $i++)
 		{
 			// You NEED to call serveUpdate before accessing the values of message in Telegram Class
@@ -140,7 +174,12 @@ class TGRelay
 		}
 	}
 
-	public function getMessageContentType(Telegram $telegram)
+	/**
+	 * @param Telegram $telegram
+	 *
+	 * @return string
+	 */
+	public function getMessageContentType(Telegram $telegram): string
 	{
 		$data = $telegram->getData()['message'];
 		$content = array_slice($data, -1);
@@ -155,7 +194,7 @@ class TGRelay
 	 */
 	public function processTelegramMessage($chat_id, $username, Telegram $telegram)
 	{
-		if (empty($chat_id) || empty($username))
+		if (empty($chat_id) || empty($username) || $this->refuseMessages)
 			return;
 
 		$channel = $this->findChannelForID($chat_id);
@@ -170,6 +209,7 @@ class TGRelay
 				$this->processEntities($telegram, $chat_id, $channel, $username);
 				break;
 
+			case 'caption':
 			case 'photo':
 				$this->processPhoto($telegram, $chat_id, $channel, $username);
 				break;
@@ -189,6 +229,12 @@ class TGRelay
 		}
 	}
 
+	/**
+	 * @param Telegram $telegram
+	 * @param $chat_id
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function processGenericFile(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
 		if (empty($channel))
@@ -208,17 +254,25 @@ class TGRelay
 			$this->getFileServer()
 				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
 		$uri = $this->getUri() . $uri;
-		$message = '[TG] ' . $username . ' uploaded a file: ' . $uri;
+
+		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
+		$message = '[TG] ' . $username . ' uploaded a file: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel, $message);
 	}
 
+	/**
+	 * @param Telegram $telegram
+	 * @param $chat_id
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function processPhoto(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
 		if (empty($channel))
 			return;
 
-		$fileID = end($telegram->getData()['message'][$this->getMessageContentType($telegram)])['file_id'];
+		$fileID = end($telegram->getData()['message']['photo'])['file_id'];
 		$fileData = $telegram->getFile($fileID);
 
 		if (!empty($fileData['error_code']))
@@ -232,37 +286,34 @@ class TGRelay
 			$this->getFileServer()
 				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
 		$uri = $this->getUri() . $uri;
-		$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri;
+
+		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
+		$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel, $message);
 	}
 
+	/**
+	 * @param Telegram $telegram
+	 * @param $chat_id
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function processEntities(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
 		$text = $telegram->getData()['message']['text'];
-		$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
+		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $channel, $username);
 
-		$offset = $telegram->getData()['message']['entities'][0]['offset'];
-		$length = $telegram->getData()['message']['entities'][0]['length'];
-
-		$command = trim(substr($text, $offset + 1, $length));
-		$arguments = array_filter(explode(' ', trim(substr($text, $length))));
-		EventEmitter::fromContainer($this->getContainer())
-			->emit('telegram.command', [$command, $telegram, $chat_id, $arguments, $channel, $username]);
-		EventEmitter::fromContainer($this->getContainer())
-			->emit('telegram.command.' . $command, [$telegram, $chat_id, $arguments, $channel, $username]);
-		Logger::fromContainer($this->getContainer())
-			->debug('[Telegram] Command found', [
-				'command' => $command,
-				'args' => $arguments
-			]);
-
-		if (!empty(EventEmitter::fromContainer($this->getContainer())->listeners('telegram.command.' . $command)))
-			return;
-
-		$this->processText($telegram, $chat_id, $channel, $username);
+		if (!$result)
+			$this->processText($telegram, $chat_id, $channel, $username);
 	}
 
+	/**
+	 * @param Telegram $telegram
+	 * @param $chat_id
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function processText(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
 		if (empty($channel))
@@ -285,6 +336,9 @@ class TGRelay
 			->privmsg($channel, $message);
 	}
 
+	/**
+	 * @param PRIVMSG $ircMessage
+	 */
 	public function processIrcMessage(PRIVMSG $ircMessage)
 	{
 		if ($ircMessage->isCtcp())

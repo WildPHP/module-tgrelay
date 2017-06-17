@@ -30,20 +30,32 @@ class TGCommands
 {
 	use ContainerTrait;
 
+	/**
+	 * TGCommands constructor.
+	 *
+	 * @param ComponentContainer $container
+	 */
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
 		$events = [
-			'commandCommand' => 'telegram.command.command',
-			'meCommand' => 'telegram.command.me',
+			'command' => 'telegram.command.command',
+			'me' => 'telegram.command.me',
 		];
 
 		foreach ($events as $callback => $event)
 		{
-			EventEmitter::fromContainer($container)->on($event, [$this, $callback]);
+			TGCommandHandler::fromContainer($container)->registerCommand($callback, [$this, $callback . 'Command'], null, 0, -1);
 		}
 	}
 
+	/**
+	 * @param \Telegram $telegram
+	 * @param $chat_id
+	 * @param array $args
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function commandCommand(\Telegram $telegram, $chat_id, array $args, string $channel, string $username)
 	{
 		Logger::fromContainer($this->getContainer())->debug('Command command called');
@@ -54,6 +66,13 @@ class TGCommands
 		Queue::fromContainer($this->getContainer())->privmsg($channel, $command);
 	}
 
+	/**
+	 * @param \Telegram $telegram
+	 * @param $chat_id
+	 * @param array $args
+	 * @param string $channel
+	 * @param string $username
+	 */
 	public function meCommand(\Telegram $telegram, $chat_id, array $args, string $channel, string $username)
 	{
 		$command = implode(' ', $args);
