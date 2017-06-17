@@ -28,7 +28,7 @@ namespace WildPHP\Modules\TGRelay;
 
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Promise\PromiseInterface;
+
 use Psr\Http\Message\ServerRequestInterface;
 use React\Http\Response;
 use React\Socket\Server;
@@ -89,6 +89,16 @@ class FileServer
 		return $basePath . '/' . $idHash;
 	}
 
+	/**
+	 * @param string $path
+	 * @param string $botID
+	 * @param string $hashID
+	 * @param string $fileURIPath
+	 *
+	 * @return mixed|\Psr\Http\Message\ResponseInterface
+	 *
+	 * TODO make this truly async
+	 */
 	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = '')
 	{
 		$file_url = 'https://api.telegram.org/file/bot' . $botID . '/' . $path;
