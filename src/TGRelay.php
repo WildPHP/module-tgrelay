@@ -100,10 +100,10 @@ class TGRelay
 		$this->setupChannelMap($channelMap);
 		$this->setupFileServer();
 
-		new TGCommands($container);
-
 		$commandHandler = new TGCommandHandler($container, new Dictionary());
 		$container->store($commandHandler);
+
+		new TGCommands($container);
 
 		$task = new Task([$this, 'fetchTelegramMessages'], 1, [$container], 1);
 		TaskController::fromContainer($container)
