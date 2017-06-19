@@ -41,4 +41,4 @@ Link channels in the config. Use the `/command` command to send commands to the 
 Other modules can add commands to the bot.
 
 ## License
-This module is licensed under the GNU General Public License, version 3. Please see `LICENSE` to read it.
+This module is licensed under the MIT license. Please see `LICENSE` to read it.
