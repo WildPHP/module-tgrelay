@@ -8,7 +8,6 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use Collections\Collection;
 use Collections\Dictionary;
 use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
@@ -29,6 +28,7 @@ use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Tasks\Task;
 use WildPHP\Core\Tasks\TaskController;
+use WildPHP\Modules\TGRelay\ChannelMap;
 
 class TGRelay
 {
@@ -40,7 +40,7 @@ class TGRelay
 	protected $botObject = null;
 
 	/**
-	 * @var Collection
+	 * @var ChannelMap()
 	 */
 	protected $channelMap = [];
 
@@ -81,7 +81,6 @@ class TGRelay
 			->get('telegram.botID')
 			->getValue();
 
-		$this->setBotID($botID);
 		$tgBot = new TgLog($botID);
 		$this->self = $tgBot->performApiRequest(new GetMe());
 
@@ -126,7 +125,7 @@ class TGRelay
 	 */
 	public function setupChannelMap(array $channelMap)
 	{
-		$collection = new Collection(TelegramLink::class);
+		$collection = new ChannelMap();
 		$this->setChannelMap($collection);
 
 		if (!empty($channelMap))
@@ -230,7 +229,7 @@ class TGRelay
 			return;
 
 		$chat_id = $update->message->chat->id;
-		$channel = $this->findChannelForID($chat_id);
+		$channel = $this->getChannelMap()->findChannelForID($chat_id);
 
 		switch ($this->getUpdateType($update))
 		{
@@ -353,7 +352,7 @@ class TGRelay
 		if (empty($associatedChannel))
 			return;
 
-		$uri = $this->downloadFile($file_id, $update->message->chat->id);
+		$uri = $this->getFileServer()->downloadFile($file_id, $update->message->chat->id, $telegram);
 
 		if (empty($uri))
 			return;
@@ -377,7 +376,7 @@ class TGRelay
 	 */
 	public function processIrcMessage(PRIVMSG $ircMessage)
 	{
-		if (!($chat_id = $this->findIDForChannel($ircMessage->getChannel())))
+		if (!($chat_id = $this->getChannelMap()->findIDForChannel($ircMessage->getChannel())))
 			return;
 
 		$telegram = $this->getBotObject();
@@ -409,57 +408,19 @@ class TGRelay
 	}
 
 	/**
-	 * @return Collection
+	 * @return ChannelMap
 	 */
-	public function getChannelMap(): Collection
+	public function getChannelMap(): ChannelMap
 	{
 		return $this->channelMap;
 	}
 
 	/**
-	 * @param Collection $channelMap
+	 * @param ChannelMap() $channelMap
 	 */
-	public function setChannelMap(Collection $channelMap)
+	public function setChannelMap(ChannelMap $channelMap)
 	{
 		$this->channelMap = $channelMap;
-	}
-
-	/**
-	 * @param string $channel
-	 *
-	 * @return bool|float|int|string
-	 */
-	public function findIDForChannel(string $channel)
-	{
-		$channelMap = $this->getChannelMap();
-		$link = $channelMap->find(function (TelegramLink $link) use ($channel)
-		{
-			return $link->getChannel() == $channel;
-		});
-
-		if (!$link)
-			return false;
-
-		return $link->getChatID();
-	}
-
-	/**
-	 * @param $id
-	 *
-	 * @return bool|string
-	 */
-	public function findChannelForID($id)
-	{
-		$channelMap = $this->getChannelMap();
-		$link = $channelMap->find(function (TelegramLink $link) use ($id)
-		{
-			return $link->getChatID() == $id;
-		});
-
-		if (!$link)
-			return false;
-
-		return $link->getChannel();
 	}
 
 	/**
@@ -505,42 +466,6 @@ class TGRelay
 	}
 
 	/**
-	 * @param $file_id
-	 * @param $chat_id
-	 *
-	 * @return false|string
-	 */
-	public function downloadFile($file_id, $chat_id)
-	{
-		$getFile = new GetFile();
-		$getFile->file_id = $file_id;
-
-		try
-		{
-			/** @var File $file */
-			$file = $this->getBotObject()
-				->performApiRequest($getFile);
-			$data = $this->getBotObject()
-				->downloadFile($file);
-
-			$uri = $this->getFileServer()
-				->putData($file->file_path, $chat_id, $data);
-
-			return $uri;
-		}
-		catch (\Exception $e)
-		{
-			$sendMessage = new SendMessage();
-			$sendMessage->chat_id = $chat_id;
-			$sendMessage->text = 'Failed to relay file';
-			$this->getBotObject()
-				->performApiRequest($sendMessage);
-
-			return false;
-		}
-	}
-
-	/**
 	 * @return FileServer
 	 */
 	public function getFileServer(): FileServer
@@ -554,21 +479,5 @@ class TGRelay
 	public function setFileServer(FileServer $fileServer)
 	{
 		$this->fileServer = $fileServer;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getBotID(): string
-	{
-		return $this->botID;
-	}
-
-	/**
-	 * @param string $botID
-	 */
-	public function setBotID(string $botID)
-	{
-		$this->botID = $botID;
 	}
 }

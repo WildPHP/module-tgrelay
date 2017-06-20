@@ -21,6 +21,10 @@ use GuzzleHttp\Client;
 use Psr\Http\Message\ServerRequestInterface;
 use React\Http\Response;
 use React\Socket\Server;
+use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
+use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
+use unreal4u\TelegramAPI\Telegram\Types\File;
+use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\Logger\Logger;
@@ -39,8 +43,10 @@ class FileServer
 		$this->setContainer($container);
 		$socket = new Server($listenOn . ':' . $port, $container->getLoop());
 
-		$http = new \React\Http\Server(function (ServerRequestInterface $request) {
-			$path = $request->getUri()->getPath();
+		$http = new \React\Http\Server(function (ServerRequestInterface $request)
+		{
+			$path = $request->getUri()
+				->getPath();
 			$path = WPHP_ROOT_DIR . 'tgstorage/' . $path;
 
 			if (!file_exists($path) || is_dir($path))
@@ -59,7 +65,7 @@ class FileServer
 	/**
 	 * @param string $chatID
 	 *
-	 * @return string	 *
+	 * @return string     *
 	 */
 	public function makeFileStructure(string $chatID): string
 	{
@@ -108,14 +114,38 @@ class FileServer
 	}
 
 	/**
-	 * @param string $path
-	 * @param string $chatID
+	 * @param $file_id
+	 * @param $chat_id
+	 * @param TgLog $telegram
 	 *
-	 * @return string
+	 * @return false|string
 	 */
-	public function getFileUrl(string $path, string $chatID): string
+	public function downloadFile($file_id, $chat_id, TgLog $telegram)
 	{
+		$getFile = new GetFile();
+		$getFile->file_id = $file_id;
 
+		try
+		{
+			/** @var File $file */
+			$file = $telegram
+				->performApiRequest($getFile);
+			$data = $telegram
+				->downloadFile($file);
+
+			$uri = $this->putData($file->file_path, $chat_id, $data);
+
+			return $uri;
+		}
+		catch (\Exception $e)
+		{
+			$sendMessage = new SendMessage();
+			$sendMessage->chat_id = $chat_id;
+			$sendMessage->text = 'Failed to relay file';
+			$telegram->performApiRequest($sendMessage);
+
+			return false;
+		}
 	}
 
 	/**
