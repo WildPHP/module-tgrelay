@@ -106,7 +106,8 @@ class TGRelay
 		EventEmitter::fromContainer($container)
 			->on('irc.line.in.001', function () use ($container)
 			{
-				Logger::fromContainer($this->getContainer())->debug('Setting refusal flag to false');
+				Logger::fromContainer($this->getContainer())
+					->debug('Setting refusal flag to false');
 				$this->refuseMessages = false;
 			});
 
@@ -114,7 +115,8 @@ class TGRelay
 			->on('wildphp.init-modules.after', function () use ($commandHandler, $container)
 			{
 				// Emit an event to let other modules know that commands can be added.
-				EventEmitter::fromContainer($container)->emit('telegram.commands.add', [$commandHandler]);
+				EventEmitter::fromContainer($container)
+					->emit('telegram.commands.add', [$commandHandler]);
 			});
 	}
 
@@ -163,7 +165,7 @@ class TGRelay
 
 		try
 		{
-			/** @var UpdatesArray $updates*/
+			/** @var UpdatesArray $updates */
 			$updates = $tgLog->performApiRequest($getUpdates);
 			foreach ($updates->traverseObject() as $update)
 			{
@@ -173,8 +175,9 @@ class TGRelay
 		}
 		catch (\Exception $e)
 		{
-			$actualProblem = json_decode((string)$e->getResponse()->getBody());
-			print_r('[EXCEPTION] '.$actualProblem->description.'; original response:');
+			$actualProblem = json_decode((string) $e->getResponse()
+				->getBody());
+			print_r('[EXCEPTION] ' . $actualProblem->description . '; original response:');
 			print_r($actualProblem);
 		}
 	}
@@ -187,9 +190,27 @@ class TGRelay
 	 */
 	public function getUpdateType(Update $update): string
 	{
-		$toPoke = ['audio', 'contact', 'document', 'entities', 'game', 'location', 'photo', 'sticker', 'video', 'video_note', 'venue',
-			'new_chat_members', 'left_chat_member', 'new_chat_title', 'new_chat_photo', 'delete_chat_photo', 'migrate_to_chat_id',
-			'migrate_from_chat_id', 'pinned_message', 'invoice', 'successful_payment'];
+		$toPoke = ['audio',
+			'contact',
+			'document',
+			'entities',
+			'game',
+			'location',
+			'photo',
+			'sticker',
+			'video',
+			'video_note',
+			'venue',
+			'new_chat_members',
+			'left_chat_member',
+			'new_chat_title',
+			'new_chat_photo',
+			'delete_chat_photo',
+			'migrate_to_chat_id',
+			'migrate_from_chat_id',
+			'pinned_message',
+			'invoice',
+			'successful_payment'];
 
 		foreach ($toPoke as $item)
 			if (!empty($update->message->$item))
@@ -232,7 +253,8 @@ class TGRelay
 				break;
 
 			case 'photo':
-				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture', end($update->message->photo->traverseObject())->file_id);
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture',
+					end($update->message->photo->traverseObject())->file_id);
 				break;
 
 			case 'sticker':
@@ -276,7 +298,8 @@ class TGRelay
 		$username = $update->message->from->username;
 		$coloredUsername = static::colorNickname($username);
 
-		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $associatedChannel, $username, $coloredUsername);
+		$result = TGCommandHandler::fromContainer($this->getContainer())
+			->parseAndRunTGCommand($text, $telegram, $chat_id, $associatedChannel, $username, $coloredUsername);
 
 		if (!$result)
 			$this->processGenericMessage($update, $telegram, $associatedChannel);
@@ -299,7 +322,8 @@ class TGRelay
 
 		$message = '[TG] ' . $message;
 
-		Queue::fromContainer($this->getContainer())->privmsg($associatedChannel, $message);
+		Queue::fromContainer($this->getContainer())
+			->privmsg($associatedChannel, $message);
 	}
 
 	/**
@@ -345,7 +369,8 @@ class TGRelay
 
 		$message = '[TG] ' . $message;
 
-		Queue::fromContainer($this->getContainer())->privmsg($associatedChannel, $message);
+		Queue::fromContainer($this->getContainer())
+			->privmsg($associatedChannel, $message);
 	}
 
 	/**
@@ -494,10 +519,14 @@ class TGRelay
 		try
 		{
 			/** @var File $file */
-			$file = $this->getBotObject()->performApiRequest($getFile);
-			$data = $this->getBotObject()->downloadFile($file);
+			$file = $this->getBotObject()
+				->performApiRequest($getFile);
+			$data = $this->getBotObject()
+				->downloadFile($file);
 
-			$uri = $this->getFileServer()->putData($file->file_path, $chat_id, $data);
+			$uri = $this->getFileServer()
+				->putData($file->file_path, $chat_id, $data);
+
 			return $uri;
 		}
 		catch (\Exception $e)
@@ -505,7 +534,9 @@ class TGRelay
 			$sendMessage = new SendMessage();
 			$sendMessage->chat_id = $chat_id;
 			$sendMessage->text = 'Failed to relay file';
-			$this->getBotObject()->performApiRequest($sendMessage);
+			$this->getBotObject()
+				->performApiRequest($sendMessage);
+
 			return false;
 		}
 	}
