@@ -10,6 +10,7 @@ namespace WildPHP\Modules\TGRelay;
 
 use Collections\Collection;
 use Collections\Dictionary;
+use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
 use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
@@ -54,7 +55,7 @@ class TGRelay
 	protected $botID = '';
 
 	/**
-	 * @var array
+	 * @var TelegramTypes
 	 */
 	protected $self;
 
@@ -175,10 +176,7 @@ class TGRelay
 		}
 		catch (\Exception $e)
 		{
-			$actualProblem = json_decode((string) $e->getResponse()
-				->getBody());
-			print_r('[EXCEPTION] ' . $actualProblem->description . '; original response:');
-			print_r($actualProblem);
+			return;
 		}
 	}
 
@@ -253,8 +251,9 @@ class TGRelay
 				break;
 
 			case 'photo':
+				$array = $update->message->photo->traverseObject();
 				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture',
-					end($update->message->photo->traverseObject())->file_id);
+					end($array)->file_id);
 				break;
 
 			case 'sticker':
@@ -356,7 +355,7 @@ class TGRelay
 
 		$uri = $this->downloadFile($file_id, $update->message->chat->id);
 
-		if (!$uri)
+		if (empty($uri))
 			return;
 
 		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . ': ' . $uri;
