@@ -97,8 +97,8 @@ class TGRelay
 		TaskController::fromContainer($container)
 			->addTask($task);
 
-		//EventEmitter::fromContainer($container)
-		//	->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
+		EventEmitter::fromContainer($container)
+			->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
 		EventEmitter::fromContainer($container)
 			->on('telegram.msg.in', [$this, 'routeUpdate']);
 
