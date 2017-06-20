@@ -15,6 +15,7 @@ use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
+use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
@@ -263,7 +264,7 @@ class TGRelay
 		$uri = $this->getUri() . $uri;
 
 		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
-		$message = '[TG] ' . $username . ' uploaded a file: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
+		$message = '[TG] ' . $this->colorNickname($username) . ' uploaded a file: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel, $message);
 	}
@@ -295,7 +296,7 @@ class TGRelay
 		$uri = $this->getUri() . $uri;
 
 		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
-		$message = '[TG] ' . $username . ' uploaded a photo: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
+		$message = '[TG] ' . $this->colorNickname($username) . ' uploaded a photo: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel, $message);
 	}
@@ -309,7 +310,8 @@ class TGRelay
 	public function processEntities(\Telegram $telegram, $chat_id, string $channel, string $username)
 	{
 		$text = $telegram->getData()['message']['text'];
-		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $channel, $username);
+		$coloredUsername = $this->colorNickname($username);
+		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $channel, $username, $coloredUsername);
 
 		if (!$result)
 			$this->processText($telegram, $chat_id, $channel, $username);
@@ -336,9 +338,9 @@ class TGRelay
 			if ($replyUsername == $this->self['username'])
 				$replyUsername = $this->parseIrcUsername($reply['text']);
 
-			$text = '@' . $replyUsername . ': ' . $text;
+			$text = '@' . $this->colorNickname($replyUsername) . ': ' . $text;
 		}
-		$message = '[TG] <' . $username . '> ' . $text;
+		$message = '[TG] <' . $this->colorNickname($username) . '> ' . $text;
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel, $message);
 	}
@@ -446,6 +448,23 @@ class TGRelay
 		$matches = array_values(array_filter($matches));
 
 		return $matches[1];
+	}
+
+	/**
+	 * @param string $nickname
+	 *
+	 * @return string
+	 */
+	public function colorNickname(string $nickname): string
+	{
+		$num = 0;
+		foreach (str_split($nickname) as $char)
+		{
+			$num += ord($char);
+		}
+		$num = abs($num) % 15; // We have 15 colors to pick from.
+
+		return TextFormatter::color($nickname, $num);
 	}
 
 	/**

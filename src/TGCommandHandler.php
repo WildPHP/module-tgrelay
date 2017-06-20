@@ -50,6 +50,7 @@ class TGCommandHandler extends CommandHandler
 	{
 		throw new \ErrorException('Cannot call CommandHandler::parseAndRunCommand from a TGCommandHandler');
 	}
+
 	/**
 	 * @param string $text
 	 * @param \Telegram $telegram
@@ -57,9 +58,11 @@ class TGCommandHandler extends CommandHandler
 	 * @param $channel
 	 * @param $username
 	 *
+	 * @param string $coloredUsername
+	 *
 	 * @return bool
 	 */
-	public function parseAndRunTGCommand(string $text, \Telegram $telegram, $chat_id, $channel, $username): bool
+	public function parseAndRunTGCommand(string $text, \Telegram $telegram, $chat_id, $channel, $username, string $coloredUsername = ''): bool
 	{
 		$parts = explode(' ', $text);
 
@@ -74,7 +77,7 @@ class TGCommandHandler extends CommandHandler
 			return false;
 
 		EventEmitter::fromContainer($this->getContainer())
-			->emit('telegram.command', [$command, $telegram, $chat_id, $parts, $channel, $username]);
+			->emit('telegram.command', [$command, $telegram, $chat_id, $parts, $channel, $username, $coloredUsername]);
 
 		$dictionary = $this->getCommandDictionary();
 
@@ -93,7 +96,7 @@ class TGCommandHandler extends CommandHandler
 			return true;
 		}
 
-		call_user_func($commandObject->getCallback(), $telegram, $chat_id, $parts, $channel, $username, $command);
+		call_user_func($commandObject->getCallback(), $telegram, $chat_id, $parts, $channel, $username, $command, $coloredUsername);
 		return true;
 	}
 }
