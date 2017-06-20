@@ -206,7 +206,7 @@ class TGRelay
 
 		$channel = $this->findChannelForID($chat_id);
 
-		switch (($type = $this->getMessageContentType($telegram)))
+		switch ($this->getMessageContentType($telegram))
 		{
 			case 'text':
 				$this->processText($telegram, $chat_id, $channel, $username);
@@ -447,7 +447,7 @@ class TGRelay
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $text, $matches);
 
-		if ($result == false)
+		if (!$result)
 			return false;
 
 		$matches = array_values(array_filter($matches));
