@@ -348,13 +348,6 @@ class TGRelay
 	 */
 	public function processIrcMessage(PRIVMSG $ircMessage)
 	{
-		if ($ircMessage->isCtcp())
-			Logger::fromContainer($this->getContainer())->debug('CTCP found!', [
-				'nickname' => $ircMessage->getNickname(),
-				'verb' => $ircMessage->getCtcpVerb(),
-				'args' => $ircMessage->getMessage()
-			]);
-
 		if (!($chat_id = $this->findIDForChannel($ircMessage->getChannel())))
 			return;
 
