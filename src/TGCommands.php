@@ -9,10 +9,10 @@
 namespace WildPHP\Modules\TGRelay;
 
 
+use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\ContainerTrait;
-use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 
 class TGCommands
@@ -39,13 +39,13 @@ class TGCommands
 	}
 
 	/**
-	 * @param \Telegram $telegram
+	 * @param TgLog $telegram
 	 * @param $chat_id
 	 * @param array $args
 	 * @param string $channel
 	 * @param string $username
 	 */
-	public function commandCommand(\Telegram $telegram, $chat_id, array $args, string $channel, string $username)
+	public function commandCommand(TgLog $telegram, $chat_id, array $args, string $channel, string $username)
 	{
 		Logger::fromContainer($this->getContainer())->debug('Command command called');
 		$command = implode(' ', $args);
@@ -56,13 +56,13 @@ class TGCommands
 	}
 
 	/**
-	 * @param \Telegram $telegram
+	 * @param TgLog $telegram
 	 * @param $chat_id
 	 * @param array $args
 	 * @param string $channel
 	 * @param string $username
 	 */
-	public function meCommand(\Telegram $telegram, $chat_id, array $args, string $channel, string $username)
+	public function meCommand(TgLog $telegram, $chat_id, array $args, string $channel, string $username)
 	{
 		$command = implode(' ', $args);
 

@@ -10,7 +10,14 @@ namespace WildPHP\Modules\TGRelay;
 
 use Collections\Collection;
 use Collections\Dictionary;
-use Telegram;
+use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
+use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
+use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
+use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
+use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
+use unreal4u\TelegramAPI\Telegram\Types\File;
+use unreal4u\TelegramAPI\Telegram\Types\Update;
+use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
@@ -27,7 +34,7 @@ class TGRelay
 	use ContainerTrait;
 
 	/**
-	 * @var Telegram
+	 * @var TgLog
 	 */
 	protected $botObject = null;
 
@@ -45,11 +52,6 @@ class TGRelay
 	 * @var string
 	 */
 	protected $botID = '';
-
-	/**
-	 * @var string
-	 */
-	protected $uri = '';
 
 	/**
 	 * @var array
@@ -77,14 +79,10 @@ class TGRelay
 		$botID = Configuration::fromContainer($container)
 			->get('telegram.botID')
 			->getValue();
-		$baseUri = Configuration::fromContainer($container)
-			->get('telegram.uri')
-			->getValue();
 
 		$this->setBotID($botID);
-		$this->setUri($baseUri . '/');
-		$tgBot = new Telegram($botID);
-		$this->self = $tgBot->getMe()['result'];
+		$tgBot = new TgLog($botID);
+		$this->self = $tgBot->performApiRequest(new GetMe());
 
 		$this->setBotObject($tgBot);
 		$this->setupChannelMap($channelMap);
@@ -99,10 +97,10 @@ class TGRelay
 		TaskController::fromContainer($container)
 			->addTask($task);
 
+		//EventEmitter::fromContainer($container)
+		//	->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
 		EventEmitter::fromContainer($container)
-			->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
-		EventEmitter::fromContainer($container)
-			->on('telegram.msg.in', [$this, 'processTelegramMessage']);
+			->on('telegram.msg.in', [$this, 'routeUpdate']);
 
 		// Unlock the refusal flag
 		EventEmitter::fromContainer($container)
@@ -146,8 +144,11 @@ class TGRelay
 		$listenOn = Configuration::fromContainer($this->getContainer())
 			->get('telegram.listenOn')
 			->getValue();
+		$baseURI = Configuration::fromContainer($this->getContainer())
+			->get('telegram.uri')
+			->getValue();
 
-		$fileServer = new FileServer($this->getContainer(), $port, $listenOn);
+		$fileServer = new FileServer($this->getContainer(), $port, $listenOn, $baseURI);
 		$this->setFileServer($fileServer);
 	}
 
@@ -157,192 +158,194 @@ class TGRelay
 	 */
 	public function fetchTelegramMessages(Task $task, ComponentContainer $container)
 	{
-		$telegram = $this->getBotObject();
-		$telegram->getUpdates();
-		for ($i = 0; $i < $telegram->UpdateCount(); $i++)
+		$tgLog = $this->getBotObject();
+		$getUpdates = new GetUpdates();
+
+		try
 		{
-			// You NEED to call serveUpdate before accessing the values of message in Telegram Class
-			$telegram->serveUpdate($i);
-			$chat_id = $telegram->ChatID();
-
-			if (is_null($chat_id))
-				continue;
-
-			$username = $telegram->Username();
-
-			Logger::fromContainer($container)
-				->debug('Received message from Telegram', [
-					'chatID' => $chat_id,
-					'username' => $username,
-					'type' => $this->getMessageContentType($telegram)
-				]);
-
-			EventEmitter::fromContainer($container)
-				->emit('telegram.msg.in', [$chat_id, $username, $telegram]);
+			/** @var UpdatesArray $updates*/
+			$updates = $tgLog->performApiRequest($getUpdates);
+			foreach ($updates->traverseObject() as $update)
+			{
+				EventEmitter::fromContainer($container)
+					->emit('telegram.msg.in', [$update, $tgLog]);
+			}
+		}
+		catch (\Exception $e)
+		{
+			$actualProblem = json_decode((string)$e->getResponse()->getBody());
+			print_r('[EXCEPTION] '.$actualProblem->description.'; original response:');
+			print_r($actualProblem);
 		}
 	}
 
 	/**
-	 * @param Telegram $telegram
+	 * @param Update $update
 	 *
 	 * @return string
+	 *
 	 */
-	public function getMessageContentType(Telegram $telegram): string
+	public function getUpdateType(Update $update): string
 	{
-		$data = $telegram->getData()['message'];
-		$content = array_slice($data, -1);
+		$toPoke = ['audio', 'contact', 'document', 'entities', 'game', 'location', 'photo', 'sticker', 'video', 'video_note', 'venue',
+			'new_chat_members', 'left_chat_member', 'new_chat_title', 'new_chat_photo', 'delete_chat_photo', 'migrate_to_chat_id',
+			'migrate_from_chat_id', 'pinned_message', 'invoice', 'successful_payment'];
 
-		return array_keys($content)[0];
+		foreach ($toPoke as $item)
+			if (!empty($update->message->$item))
+				return $item;
+
+		if (!empty($update->message))
+			return 'message';
+
+		return 'unknown';
 	}
 
 	/**
-	 * @param int|float $chat_id
-	 * @param string|null $username
-	 * @param Telegram $telegram
+	 * @param Update $update
+	 * @param TgLog $telegram
 	 */
-	public function processTelegramMessage($chat_id, $username, Telegram $telegram)
+	public function routeUpdate(Update $update, TgLog $telegram)
 	{
-		if (empty($chat_id) || empty($username) || $this->refuseMessages)
+		if ($this->refuseMessages)
 			return;
 
+		$chat_id = $update->message->chat->id;
 		$channel = $this->findChannelForID($chat_id);
 
-		switch ($this->getMessageContentType($telegram))
+		switch ($this->getUpdateType($update))
 		{
-			case 'text':
-				$this->processText($telegram, $chat_id, $channel, $username);
-				break;
-
-			case 'entities':
-				$this->processEntities($telegram, $chat_id, $channel, $username);
-				break;
-
-			case 'caption':
-			case 'photo':
-				$this->processPhoto($telegram, $chat_id, $channel, $username);
+			case 'audio':
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded an audio file', $update->message->audio->file_id);
 				break;
 
 			case 'document':
-			case 'voice':
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a document', $update->message->document->file_id);
+				break;
+
+			case 'entities':
+				$this->processEntities($update, $telegram, $channel);
+				break;
+
+			case 'message':
+				$this->processGenericMessage($update, $telegram, $channel);
+				break;
+
+			case 'photo':
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture', end($update->message->photo->traverseObject())->file_id);
+				break;
+
 			case 'sticker':
-				$this->processGenericFile($telegram, $chat_id, $channel, $username);
+				$this->processDownloadableFile($update, $telegram, $channel, 'sent a sticker', $update->message->sticker->file_id);
+				break;
+
+			case 'video':
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a video', $update->message->video->file_id);
+				break;
+
+			case 'voice':
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a voice recording', $update->message->voice->file_id);
+				break;
+
+			case 'contact':
+			case 'game':
+			case 'location':
+			case 'venue':
+			case 'invoice':
+				$this->processUnsupportedMessage($update, $telegram, $channel);
 				break;
 
 			default:
 				Logger::fromContainer($this->getContainer())
-					->warning('Message type not implemented!', [
-						'type' => $this->getMessageContentType($telegram),
-						'data' => $telegram->getData()
+					->debug('Message type not implemented!', [
+						'type' => $this->getUpdateType($update),
+						'data' => $update
 					]);
 		}
 	}
 
 	/**
-	 * @param Telegram $telegram
-	 * @param $chat_id
-	 * @param string $channel
-	 * @param string $username
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $associatedChannel
 	 */
-	public function processGenericFile(\Telegram $telegram, $chat_id, string $channel, string $username)
+	public function processEntities(Update $update, TgLog $telegram, string $associatedChannel)
 	{
-		if (empty($channel))
-			return;
+		$text = $update->message->text;
+		$chat_id = $update->message->chat->id;
+		$username = $update->message->from->username;
+		$coloredUsername = static::colorNickname($username);
 
-		$fileID = $telegram->getData()['message'][$this->getMessageContentType($telegram)]['file_id'];
-		$fileData = $telegram->getFile($fileID);
-
-		if (!empty($fileData['error_code']))
-			return;
-
-		$path = $fileData['result']['file_path'];
-		$idHash = sha1($chat_id);
-
-		$uri = '';
-		if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-			$this->getFileServer()
-				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
-		$uri = $this->getUri() . $uri;
-
-		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
-		$message = '[TG] ' . $this->colorNickname($username) . ' uploaded a file: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
-		Queue::fromContainer($this->getContainer())
-			->privmsg($channel, $message);
-	}
-
-	/**
-	 * @param Telegram $telegram
-	 * @param $chat_id
-	 * @param string $channel
-	 * @param string $username
-	 */
-	public function processPhoto(\Telegram $telegram, $chat_id, string $channel, string $username)
-	{
-		if (empty($channel))
-			return;
-
-		$fileID = end($telegram->getData()['message']['photo'])['file_id'];
-		$fileData = $telegram->getFile($fileID);
-
-		if (!empty($fileData['error_code']))
-			return;
-
-		$path = $fileData['result']['file_path'];
-		$idHash = sha1($chat_id);
-
-		$uri = '';
-		if (!file_exists(WPHP_ROOT_DIR . 'tgstorage/' . $path))
-			$this->getFileServer()
-				->downloadFileAsync($path, $this->getBotID(), $idHash, $uri);
-		$uri = $this->getUri() . $uri;
-
-		$caption = !empty($telegram->getData()['message']['caption']) ? $telegram->getData()['message']['caption'] : '';
-		$message = '[TG] ' . $this->colorNickname($username) . ' uploaded a photo: ' . $uri . (!empty($caption) ? ' (' . $caption . ')' : '');
-		Queue::fromContainer($this->getContainer())
-			->privmsg($channel, $message);
-	}
-
-	/**
-	 * @param Telegram $telegram
-	 * @param $chat_id
-	 * @param string $channel
-	 * @param string $username
-	 */
-	public function processEntities(\Telegram $telegram, $chat_id, string $channel, string $username)
-	{
-		$text = $telegram->getData()['message']['text'];
-		$coloredUsername = $this->colorNickname($username);
-		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $channel, $username, $coloredUsername);
+		$result = TGCommandHandler::fromContainer($this->getContainer())->parseAndRunTGCommand($text, $telegram, $chat_id, $associatedChannel, $username, $coloredUsername);
 
 		if (!$result)
-			$this->processText($telegram, $chat_id, $channel, $username);
+			$this->processGenericMessage($update, $telegram, $associatedChannel);
 	}
 
 	/**
-	 * @param Telegram $telegram
-	 * @param $chat_id
-	 * @param string $channel
-	 * @param string $username
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $associatedChannel
 	 */
-	public function processText(\Telegram $telegram, $chat_id, string $channel, string $username)
+	public function processGenericMessage(Update $update, TgLog $telegram, string $associatedChannel)
 	{
-		if (empty($channel))
+		if (empty($associatedChannel))
 			return;
 
-		$text = $telegram->getData()['message']['text'];
-		$text = str_replace("\n", ' | ', str_replace("\r", "\n", $text));
+		$message = '<' . static::colorNickname($update->message->from->username) . '> ' . $update->message->text;
 
-		if (array_key_exists('reply_to_message', $telegram->getData()['message']))
-		{
-			$reply = $telegram->getData()['message']['reply_to_message'];
-			$replyUsername = $reply['from']['username'];
-			if ($replyUsername == $this->self['username'])
-				$replyUsername = $this->parseIrcUsername($reply['text']);
+		if (($replyUsername = $this->getReplyUsername($update)))
+			$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
 
-			$text = '@' . $this->colorNickname($replyUsername) . ': ' . $text;
-		}
-		$message = '[TG] <' . $this->colorNickname($username) . '> ' . $text;
-		Queue::fromContainer($this->getContainer())
-			->privmsg($channel, $message);
+		$message = '[TG] ' . $message;
+
+		Queue::fromContainer($this->getContainer())->privmsg($associatedChannel, $message);
+	}
+
+	/**
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $associatedChannel
+	 */
+	public function processUnsupportedMessage(Update $update, TgLog $telegram, string $associatedChannel)
+	{
+		if (empty($associatedChannel))
+			return;
+
+		$sendMessage = new SendMessage();
+		$sendMessage->chat_id = $update->message->chat->id;
+		$sendMessage->text = 'Unable to relay message to IRC because it is unsupported';
+		$telegram->performApiRequest($sendMessage);
+	}
+
+	/**
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $associatedChannel
+	 * @param string $fileMessage
+	 * @param mixed $file_id
+	 */
+	public function processDownloadableFile(Update $update, TgLog $telegram, string $associatedChannel, string $fileMessage, $file_id)
+	{
+		if (empty($associatedChannel))
+			return;
+
+		$uri = $this->downloadFile($file_id, $update->message->chat->id);
+
+		if (!$uri)
+			return;
+
+		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . ': ' . $uri;
+
+		if (!empty($update->message->caption))
+			$message .= ' (' . $update->message->caption . ')';
+
+		if (($replyUsername = $this->getReplyUsername($update)))
+			$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
+
+		$message = '[TG] ' . $message;
+
+		Queue::fromContainer($this->getContainer())->privmsg($associatedChannel, $message);
 	}
 
 	/**
@@ -359,21 +362,24 @@ class TGRelay
 		else
 			$message = '<' . $ircMessage->getNickname() . '> ' . $ircMessage->getMessage();
 
-		$telegram->sendMessage(['chat_id' => $chat_id, 'text' => $message]);
+		$sendMessage = new SendMessage();
+		$sendMessage->chat_id = $chat_id;
+		$sendMessage->text = $message;
+		$telegram->performApiRequest($sendMessage);
 	}
 
 	/**
-	 * @return Telegram
+	 * @return TgLog
 	 */
-	public function getBotObject(): Telegram
+	public function getBotObject(): TgLog
 	{
 		return $this->botObject;
 	}
 
 	/**
-	 * @param Telegram $botObject
+	 * @param TgLog $botObject
 	 */
-	public function setBotObject(Telegram $botObject)
+	public function setBotObject(TgLog $botObject)
 	{
 		$this->botObject = $botObject;
 	}
@@ -433,14 +439,21 @@ class TGRelay
 	}
 
 	/**
-	 * @param string $text
+	 * @param Update $update
 	 *
 	 * @return bool|string
+	 *
 	 */
-	public function parseIrcUsername(string $text)
+	public function getReplyUsername(Update $update)
 	{
+		if (empty($update->message->reply_to_message))
+			return false;
+
+		if ($update->message->reply_to_message->from->username != $this->self->username)
+			return $update->message->reply_to_message->from->username;
+
 		// This accounts for both normal messages and CTCP ACTION ones.
-		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $text, $matches);
+		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $update->message->reply_to_message->text, $matches);
 
 		if (!$result)
 			return false;
@@ -455,7 +468,7 @@ class TGRelay
 	 *
 	 * @return string
 	 */
-	public function colorNickname(string $nickname): string
+	public static function colorNickname(string $nickname): string
 	{
 		$num = 0;
 		foreach (str_split($nickname) as $char)
@@ -465,6 +478,36 @@ class TGRelay
 		$num = abs($num) % 15; // We have 15 colors to pick from.
 
 		return TextFormatter::color($nickname, $num);
+	}
+
+	/**
+	 * @param $file_id
+	 * @param $chat_id
+	 *
+	 * @return false|string
+	 */
+	public function downloadFile($file_id, $chat_id)
+	{
+		$getFile = new GetFile();
+		$getFile->file_id = $file_id;
+
+		try
+		{
+			/** @var File $file */
+			$file = $this->getBotObject()->performApiRequest($getFile);
+			$data = $this->getBotObject()->downloadFile($file);
+
+			$uri = $this->getFileServer()->putData($file->file_path, $chat_id, $data);
+			return $uri;
+		}
+		catch (\Exception $e)
+		{
+			$sendMessage = new SendMessage();
+			$sendMessage->chat_id = $chat_id;
+			$sendMessage->text = 'Failed to relay file';
+			$this->getBotObject()->performApiRequest($sendMessage);
+			return false;
+		}
 	}
 
 	/**
@@ -497,21 +540,5 @@ class TGRelay
 	public function setBotID(string $botID)
 	{
 		$this->botID = $botID;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getUri(): string
-	{
-		return $this->uri;
-	}
-
-	/**
-	 * @param string $uri
-	 */
-	public function setUri(string $uri)
-	{
-		$this->uri = $uri;
 	}
 }

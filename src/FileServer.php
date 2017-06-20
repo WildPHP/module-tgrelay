@@ -29,7 +29,12 @@ class FileServer
 {
 	use ContainerTrait;
 
-	public function __construct(ComponentContainer $container, int $port, string $listenOn)
+	/**
+	 * @var string
+	 */
+	protected $baseURI;
+
+	public function __construct(ComponentContainer $container, int $port, string $listenOn, string $baseURI)
 	{
 		$this->setContainer($container);
 		$socket = new Server($listenOn . ':' . $port, $container->getLoop());
@@ -48,16 +53,18 @@ class FileServer
 			);
 		});
 		$http->listen($socket);
+		$this->setBaseURI($baseURI);
 	}
 
 	/**
-	 * @param string $idHash
+	 * @param string $chatID
 	 *
-	 * @return string
+	 * @return string	 *
 	 */
-	public function makeFileStructure(string $idHash): string
+	public function makeFileStructure(string $chatID): string
 	{
 		$basePath = WPHP_ROOT_DIR . '/tgstorage';
+		$idHash = sha1($chatID);
 
 		$structure = [
 			$basePath,
@@ -66,6 +73,7 @@ class FileServer
 			$basePath . '/' . $idHash . '/documents',
 			$basePath . '/' . $idHash . '/animations',
 			$basePath . '/' . $idHash . '/stickers',
+			$basePath . '/' . $idHash . '/video',
 			$basePath . '/' . $idHash . '/voice'
 		];
 
@@ -80,33 +88,49 @@ class FileServer
 
 	/**
 	 * @param string $path
-	 * @param string $botID
-	 * @param string $hashID
-	 * @param string $fileURIPath
+	 * @param string $chatID
+	 * @param string $data
 	 *
-	 * @return mixed|\Psr\Http\Message\ResponseInterface
-	 *
-	 * TODO make this truly async
+	 * @return false|string
 	 */
-	public function downloadFileAsync(string $path, string $botID, string $hashID, string &$fileURIPath = '')
+	public function putData(string $path, string $chatID, string $data)
 	{
-		$file_url = 'https://api.telegram.org/file/bot' . $botID . '/' . $path;
+		$basePath = $this->makeFileStructure($chatID);
+		$path = $basePath . '/' . $path;
 
-		$basedir = $this->makeFileStructure($hashID);
-		$filePath = $basedir . '/' . $path;
+		if (!@touch($path))
+			return false;
 
-		Logger::fromContainer($this->getContainer())->debug('[TG] Downloading file', [
-			'uri' => $file_url,
-			'path' => $filePath
-		]);
+		if (!@file_put_contents($path, $data))
+			return false;
 
-		touch($filePath);
-		$fileResource = fopen($filePath, 'w');
-		$guzzleClient = new Client([
-			'connect_timeout' => 3.0,
-			'timeout' => 3.0
-		]);
-		$fileURIPath = $hashID . '/' . $path;
-		return $guzzleClient->request('GET', $file_url, ['sink' => $fileResource, 'curl' => [CURLOPT_SSL_VERIFYPEER => false]]);
+		return $this->getBaseURI() . '/' . sha1($chatID) . '/' . $path;
+	}
+
+	/**
+	 * @param string $path
+	 * @param string $chatID
+	 *
+	 * @return string
+	 */
+	public function getFileUrl(string $path, string $chatID): string
+	{
+
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getBaseURI(): string
+	{
+		return $this->baseURI;
+	}
+
+	/**
+	 * @param string $baseURI
+	 */
+	public function setBaseURI(string $baseURI)
+	{
+		$this->baseURI = $baseURI;
 	}
 }

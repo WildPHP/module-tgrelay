@@ -17,6 +17,8 @@ namespace WildPHP\Modules\TGRelay;
 
 
 use Collections\Dictionary;
+use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
+use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\ComponentTrait;
@@ -53,7 +55,7 @@ class TGCommandHandler extends CommandHandler
 
 	/**
 	 * @param string $text
-	 * @param \Telegram $telegram
+	 * @param TgLog $telegram
 	 * @param $chat_id
 	 * @param $channel
 	 * @param $username
@@ -62,7 +64,7 @@ class TGCommandHandler extends CommandHandler
 	 *
 	 * @return bool
 	 */
-	public function parseAndRunTGCommand(string $text, \Telegram $telegram, $chat_id, $channel, $username, string $coloredUsername = ''): bool
+	public function parseAndRunTGCommand(string $text, TgLog $telegram, $chat_id, $channel, $username, string $coloredUsername = ''): bool
 	{
 		$parts = explode(' ', $text);
 
@@ -89,8 +91,10 @@ class TGCommandHandler extends CommandHandler
 		$maximumArguments = $commandObject->getMaximumArguments();
 		if (count($parts) < $commandObject->getMinimumArguments() || ($maximumArguments != -1 && count($parts) > $maximumArguments))
 		{
-			$msg = 'Invalid argument count. (not in range of ' . $commandObject->getMinimumArguments() . ' =< x =< ' . $maximumArguments . ')';
-			$telegram->sendMessage(['chat_id' => $chat_id, 'text' => $msg]);
+			$sendMessage = new SendMessage();
+			$sendMessage->text = 'Invalid argument count. (not in range of ' . $commandObject->getMinimumArguments() . ' =< x =< ' . $maximumArguments . ')';
+			$sendMessage->chat_id = $chat_id;
+			$telegram->performApiRequest($sendMessage);
 
 			// We return true here so it doesn't get processed as a regular message.
 			return true;
