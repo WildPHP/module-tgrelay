@@ -10,7 +10,8 @@
     ],
     "require": {
         "unreal4u/telegram-api": "~2.4",
-        "react/http": "^0.7"
+        "react/http": "^0.7",
+        "ext-fileinfo": "*"
     },
     "autoload": {
         "psr-4": {

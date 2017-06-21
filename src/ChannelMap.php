@@ -24,8 +24,7 @@ class ChannelMap extends Collection
 	 */
 	public function findIDForChannel(string $channel)
 	{
-		$channelMap = $this->getChannelMap();
-		$link = $channelMap->find(function (TelegramLink $link) use ($channel)
+		$link = $this->find(function (TelegramLink $link) use ($channel)
 		{
 			return $link->getChannel() == $channel;
 		});
@@ -43,8 +42,7 @@ class ChannelMap extends Collection
 	 */
 	public function findChannelForID($id)
 	{
-		$channelMap = $this->getChannelMap();
-		$link = $channelMap->find(function (TelegramLink $link) use ($id)
+		$link = $this->find(function (TelegramLink $link) use ($id)
 		{
 			return $link->getChatID() == $id;
 		});
