@@ -371,7 +371,7 @@ class TGRelay
 		if (empty($uri))
 			return;
 
-		$replyText = ($replyUsername = $this->getReplyUsername($update)) ? 'in reply to @' . static::colorNickname($replyUsername) : '';
+		$replyText = ($replyUsername = $this->getReplyUsername($update)) ? 'in reply to ' . static::colorNickname($replyUsername) : '';
 		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . $replyText . ': ' . $uri;
 
 		if (!empty($update->message->caption))
