@@ -327,12 +327,12 @@ class TGRelay
 		if (empty($associatedChannel))
 			return;
 
-		$message = '<' . static::colorNickname($update->message->from->username) . '> ' . $update->message->text;
+		$message =  $update->message->text;
 
 		if (($replyUsername = $this->getReplyUsername($update)))
 			$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
 
-		$message = '[TG] ' . $message;
+		$message = '[TG] <' . static::colorNickname($update->message->from->username) . '> ' . $message;
 
 		Queue::fromContainer($this->getContainer())
 			->privmsg($associatedChannel, $message);
@@ -371,13 +371,11 @@ class TGRelay
 		if (empty($uri))
 			return;
 
-		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . ': ' . $uri;
+		$replyText = ($replyUsername = $this->getReplyUsername($update)) ? 'in reply to @' . static::colorNickname($replyUsername) : '';
+		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . $replyText . ': ' . $uri;
 
 		if (!empty($update->message->caption))
 			$message .= ' (' . $update->message->caption . ')';
-
-		if (($replyUsername = $this->getReplyUsername($update)))
-			$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
 
 		$message = '[TG] ' . $message;
 
