@@ -6,17 +6,7 @@
  * See the LICENSE file for more information.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 27-5-2017
- * Time: 14:25
- */
-
 namespace WildPHP\Modules\TGRelay;
-
-
-use GuzzleHttp\Client;
 
 use Psr\Http\Message\ServerRequestInterface;
 use React\Http\Response;
@@ -27,7 +17,6 @@ use unreal4u\TelegramAPI\Telegram\Types\File;
 use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\ContainerTrait;
-use WildPHP\Core\Logger\Logger;
 
 class FileServer
 {
@@ -43,11 +32,11 @@ class FileServer
 		$this->setContainer($container);
 		$socket = new Server($listenOn . ':' . $port, $container->getLoop());
 
-		$http = new \React\Http\Server(function (ServerRequestInterface $request)
+		$http = new \React\Http\Server(function (ServerRequestInterface $request) use ($container)
 		{
 			$path = $request->getUri()
 				->getPath();
-			$path = WPHP_ROOT_DIR . 'tgstorage/' . $path;
+			$path = WPHP_ROOT_DIR . 'tgstorage' . $path;
 
 			if (!file_exists($path) || is_dir($path))
 				return new Response(404, ['Content-Type' => 'text/plain'], '404: Not Found');
@@ -93,16 +82,16 @@ class FileServer
 	}
 
 	/**
-	 * @param string $path
+	 * @param string $tgPath
 	 * @param string $chatID
 	 * @param string $data
 	 *
 	 * @return false|string
 	 */
-	public function putData(string $path, string $chatID, string $data)
+	public function putData(string $tgPath, string $chatID, string $data)
 	{
 		$basePath = $this->makeFileStructure($chatID);
-		$path = $basePath . '/' . $path;
+		$path = $basePath . '/' . $tgPath;
 
 		if (!@touch($path))
 			return false;
@@ -110,7 +99,7 @@ class FileServer
 		if (!@file_put_contents($path, $data))
 			return false;
 
-		return $this->getBaseURI() . '/' . sha1($chatID) . '/' . $path;
+		return $this->getBaseURI() . '/' . sha1($chatID) . '/' . $tgPath;
 	}
 
 	/**

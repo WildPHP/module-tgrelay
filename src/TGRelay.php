@@ -67,6 +67,11 @@ class TGRelay
 	protected $refuseMessages = true;
 
 	/**
+	 * @var int
+	 */
+	protected $lastUpdateID = 0;
+
+	/**
 	 * TGRelay constructor.
 	 *
 	 * @param ComponentContainer $container
@@ -162,16 +167,26 @@ class TGRelay
 	{
 		$tgLog = $this->getBotObject();
 		$getUpdates = new GetUpdates();
+		$getUpdates->offset = $this->getLastUpdateID();
 
 		try
 		{
 			/** @var UpdatesArray $updates */
 			$updates = $tgLog->performApiRequest($getUpdates);
+
+			if (empty($updates->data))
+				return;
+
+			$lastUpdateID = 0;
 			foreach ($updates->traverseObject() as $update)
 			{
 				EventEmitter::fromContainer($container)
 					->emit('telegram.msg.in', [$update, $tgLog]);
+
+				$lastUpdateID = $update->update_id;
 			}
+
+			$this->setLastUpdateID($lastUpdateID + 1);
 		}
 		catch (\Exception $e)
 		{
@@ -250,9 +265,8 @@ class TGRelay
 				break;
 
 			case 'photo':
-				$array = $update->message->photo->traverseObject();
-				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture',
-					end($array)->file_id);
+				$file_id = end($update->message->photo)->file_id;
+				$this->processDownloadableFile($update, $telegram, $channel, 'uploaded a picture', $file_id);
 				break;
 
 			case 'sticker':
@@ -479,5 +493,21 @@ class TGRelay
 	public function setFileServer(FileServer $fileServer)
 	{
 		$this->fileServer = $fileServer;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getLastUpdateID(): int
+	{
+		return $this->lastUpdateID;
+	}
+
+	/**
+	 * @param int $lastUpdateID
+	 */
+	public function setLastUpdateID(int $lastUpdateID)
+	{
+		$this->lastUpdateID = $lastUpdateID;
 	}
 }
