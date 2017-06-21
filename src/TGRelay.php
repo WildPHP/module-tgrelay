@@ -183,6 +183,10 @@ class TGRelay
 				EventEmitter::fromContainer($container)
 					->emit('telegram.msg.in', [$update, $tgLog]);
 
+				Logger::fromContainer($container)->debug('[TG] Update received', [
+					'id' => $update->update_id
+				]);
+
 				$lastUpdateID = $update->update_id;
 			}
 
