@@ -332,14 +332,28 @@ class TGRelay
 			return;
 
 		$message =  $update->message->text;
+		$messages = array_filter(explode("\n", str_replace("\r", "\n", $message)));
 
-		if (($replyUsername = $this->getReplyUsername($update)))
-			$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
+		if (count($messages) > 10)
+		{
+			$sendMessage = new SendMessage();
+			$sendMessage->text = 'Cut off message to IRC; too many lines (max. 10 supported)';
+			$sendMessage->chat_id = $update->message->chat->id;
+			$telegram->performApiRequest($sendMessage);
+			$messages = array_chunk($messages, 10)[0];
+			$messages[] = TextFormatter::italic('...(cut off more messages)...');
+		}
 
-		$message = '[TG] <' . static::colorNickname($update->message->from->username) . '> ' . $message;
+		foreach ($messages as $message)
+		{
+			if (($replyUsername = $this->getReplyUsername($update)))
+				$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
 
-		Queue::fromContainer($this->getContainer())
-			->privmsg($associatedChannel, $message);
+			$message = '[TG] <' . static::colorNickname($update->message->from->username) . '> ' . $message;
+
+			Queue::fromContainer($this->getContainer())
+				->privmsg($associatedChannel, $message);
+		}
 	}
 
 	/**
