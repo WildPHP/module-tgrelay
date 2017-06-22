@@ -183,9 +183,10 @@ class TGRelay
 				EventEmitter::fromContainer($container)
 					->emit('telegram.msg.in', [$update, $tgLog]);
 
-				Logger::fromContainer($container)->debug('[TG] Update received', [
-					'id' => $update->update_id
-				]);
+				Logger::fromContainer($container)
+					->debug('[TG] Update received', [
+						'id' => $update->update_id
+					]);
 
 				$lastUpdateID = $update->update_id;
 			}
@@ -248,7 +249,8 @@ class TGRelay
 			return;
 
 		$chat_id = $update->message->chat->id;
-		$channel = $this->getChannelMap()->findChannelForID($chat_id);
+		$channel = $this->getChannelMap()
+			->findChannelForID($chat_id);
 
 		switch ($this->getUpdateType($update))
 		{
@@ -331,7 +333,7 @@ class TGRelay
 		if (empty($associatedChannel))
 			return;
 
-		$message =  $update->message->text;
+		$message = $update->message->text;
 		$messages = array_filter(explode("\n", str_replace("\r", "\n", $message)));
 
 		if (count($messages) > 10)
@@ -349,7 +351,9 @@ class TGRelay
 			if (($replyUsername = $this->getReplyUsername($update)))
 				$message = '@' . static::colorNickname($replyUsername) . ': ' . $message;
 
-			$message = '[TG] <' . static::colorNickname($update->message->from->username) . '> ' . $message;
+			$nickname = !empty($update->message->from->username) ? $update->message->from->username :
+				trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
+			$message = '[TG] <' . static::colorNickname($nickname) . '> ' . $message;
 
 			Queue::fromContainer($this->getContainer())
 				->privmsg($associatedChannel, $message);
@@ -384,13 +388,16 @@ class TGRelay
 		if (empty($associatedChannel))
 			return;
 
-		$uri = $this->getFileServer()->downloadFile($file_id, $update->message->chat->id, $telegram);
+		$uri = $this->getFileServer()
+			->downloadFile($file_id, $update->message->chat->id, $telegram);
 
 		if (empty($uri))
 			return;
 
 		$replyText = ($replyUsername = $this->getReplyUsername($update)) ? ' in reply to ' . static::colorNickname($replyUsername) : '';
-		$message = static::colorNickname($update->message->from->username) . ' ' . $fileMessage . $replyText . ': ' . $uri;
+		$nickname = !empty($update->message->from->username) ? $update->message->from->username :
+			trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
+		$message = static::colorNickname($nickname) . ' ' . $fileMessage . $replyText . ': ' . $uri;
 
 		if (!empty($update->message->caption))
 			$message .= ' (' . $update->message->caption . ')';
@@ -406,7 +413,9 @@ class TGRelay
 	 */
 	public function processIrcMessage(PRIVMSG $ircMessage)
 	{
-		if (!($chat_id = $this->getChannelMap()->findIDForChannel($ircMessage->getChannel())))
+		if (!($chat_id = $this->getChannelMap()
+			->findIDForChannel($ircMessage->getChannel()))
+		)
 			return;
 
 		$telegram = $this->getBotObject();
