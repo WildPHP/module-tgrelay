@@ -9,9 +9,12 @@
 namespace WildPHP\Modules\TGRelay;
 
 use WildPHP\Core\Collection;
+use WildPHP\Core\ComponentTrait;
 
 class ChannelMap extends Collection
 {
+	use ComponentTrait;
+
 	public function __construct()
 	{
 		parent::__construct(TelegramLink::class);

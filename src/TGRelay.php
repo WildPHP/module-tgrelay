@@ -15,7 +15,6 @@ use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
-use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\Commands\Command;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
@@ -131,6 +130,7 @@ class TGRelay
 	{
 		$collection = new ChannelMap();
 		$this->setChannelMap($collection);
+		$this->getContainer()->store($collection);
 
 		if (!empty($channelMap))
 			foreach ($channelMap as $chatID => $channel)
