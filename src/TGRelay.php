@@ -20,6 +20,7 @@ use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
+use WildPHP\Core\Connection\QueueItem;
 use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
@@ -102,6 +103,9 @@ class TGRelay
 
 		EventEmitter::fromContainer($container)
 			->on('irc.line.in.privmsg', [$this, 'processIrcMessage']);
+		EventEmitter::fromContainer($container)
+			->on('irc.line.out.privmsg', [$this, 'processOutgoingIrcMessage']);
+
 		EventEmitter::fromContainer($container)
 			->on('telegram.msg.in', [$this, 'routeUpdate']);
 
@@ -405,6 +409,26 @@ class TGRelay
 
 		Queue::fromContainer($this->getContainer())
 			->privmsg($associatedChannel, $message);
+	}
+
+	/**
+	 * @param QueueItem $queueItem
+	 */
+	public function processOutgoingIrcMessage(QueueItem $queueItem)
+	{
+		/** @var PRIVMSG $privmsg */
+		$privmsg = $queueItem->getCommandObject();
+
+		$channel = $privmsg->getChannel();
+		$chat_id = $this->getChannelMap()->findIDForChannel($channel);
+
+		if (!$chat_id || substr($privmsg->getMessage(), 0, 4) == '[TG]')
+			return;
+
+		$sendMessage = new SendMessage();
+		$sendMessage->chat_id = $chat_id;
+		$sendMessage->text = $privmsg->getMessage();
+		$this->getBotObject()->performApiRequest($sendMessage);
 	}
 
 	/**
