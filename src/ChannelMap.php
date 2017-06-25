@@ -8,7 +8,7 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use Collections\Collection;
+use WildPHP\Core\Collection;
 
 class ChannelMap extends Collection
 {
@@ -24,12 +24,12 @@ class ChannelMap extends Collection
 	 */
 	public function findIDForChannel(string $channel)
 	{
-		$link = $this->find(function (TelegramLink $link) use ($channel)
-		{
-			return $link->getChannel() == $channel;
-		});
+		/** @var TelegramLink $value */
+		foreach ($this->values() as $value)
+			if ($value->getChannel() == $channel)
+				$link = $value;
 
-		if (!$link)
+		if (empty($link))
 			return false;
 
 		return $link->getChatID();
@@ -42,12 +42,12 @@ class ChannelMap extends Collection
 	 */
 	public function findChannelForID($id)
 	{
-		$link = $this->find(function (TelegramLink $link) use ($id)
-		{
-			return $link->getChatID() == $id;
-		});
+		/** @var TelegramLink $value */
+		foreach ($this->values() as $value)
+			if ($value->getChatID() == $id)
+				$link = $value;
 
-		if (!$link)
+		if (empty($link))
 			return false;
 
 		return $link->getChannel();

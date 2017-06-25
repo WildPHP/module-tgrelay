@@ -16,7 +16,7 @@
 namespace WildPHP\Modules\TGRelay;
 
 
-use Collections\Dictionary;
+use WildPHP\Core\Collection;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\Commands\CommandHandler;
@@ -34,11 +34,11 @@ class TGCommandHandler extends CommandHandler
 	 * CommandHandler constructor.
 	 *
 	 * @param ComponentContainer $container
-	 * @param Dictionary $commandDictionary
+	 * @param Collection $commandCollection
 	 */
-	public function __construct(ComponentContainer $container, Dictionary $commandDictionary)
+	public function __construct(ComponentContainer $container, Collection $commandCollection)
 	{
-		$this->setCommandDictionary($commandDictionary);
+		$this->setCommandCollection($commandCollection);
 		$this->setContainer($container);
 	}
 
@@ -81,9 +81,9 @@ class TGCommandHandler extends CommandHandler
 		EventEmitter::fromContainer($this->getContainer())
 			->emit('telegram.command', [$command, $telegram, $chat_id, $parts, $channel, $username, $coloredUsername]);
 
-		$dictionary = $this->getCommandDictionary();
+		$dictionary = $this->getCommandCollection();
 
-		if (!$dictionary->keyExists($command))
+		if (!$dictionary->offsetExists($command))
 			return false;
 
 		$commandObject = $dictionary[$command];
