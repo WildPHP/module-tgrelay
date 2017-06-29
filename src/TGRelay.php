@@ -8,13 +8,13 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use WildPHP\Core\Collection;
 use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
 use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
+use ValidationClosures\Types;
 use WildPHP\Core\Commands\Command;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
@@ -27,6 +27,7 @@ use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Tasks\Task;
 use WildPHP\Core\Tasks\TaskController;
+use Yoshi2889\Collections\Collection;
 
 class TGRelay
 {
@@ -86,14 +87,14 @@ class TGRelay
 
 		$tgBot = new TgLog($botID);
 		$this->self = $tgBot->performApiRequest(new GetMe());
-		$container->store($tgBot);
+		$container->add($tgBot);
 
 		$this->setBotObject($tgBot);
 		$this->setupChannelMap($channelMap);
 		$this->setupFileServer();
 
-		$commandHandler = new TGCommandHandler($container, new Collection(Command::class));
-		$container->store($commandHandler);
+		$commandHandler = new TGCommandHandler($container, new Collection(Types::instanceof(Command::class)));
+		$container->add($commandHandler);
 
 		new TGCommands($container);
 
@@ -134,7 +135,7 @@ class TGRelay
 	{
 		$collection = new ChannelMap();
 		$this->setChannelMap($collection);
-		$this->getContainer()->store($collection);
+		$this->getContainer()->add($collection);
 
 		if (!empty($channelMap))
 			foreach ($channelMap as $chatID => $channel)

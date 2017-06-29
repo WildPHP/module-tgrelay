@@ -6,25 +6,18 @@
  * See the LICENSE file for more information.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 17-6-2017
- * Time: 15:28
- */
-
 namespace WildPHP\Modules\TGRelay;
 
 
-use WildPHP\Core\Collection;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\ComponentContainer;
-use WildPHP\Core\ComponentTrait;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\EventEmitter;
+use Yoshi2889\Collections\Collection;
+use Yoshi2889\Container\ComponentTrait;
 
 class TGCommandHandler extends CommandHandler
 {

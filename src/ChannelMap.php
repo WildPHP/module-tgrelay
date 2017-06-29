@@ -8,16 +8,18 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use WildPHP\Core\Collection;
-use WildPHP\Core\ComponentTrait;
+use ValidationClosures\Types;
+use Yoshi2889\Collections\Collection;
+use Yoshi2889\Container\ComponentInterface;
+use Yoshi2889\Container\ComponentTrait;
 
-class ChannelMap extends Collection
+class ChannelMap extends Collection implements ComponentInterface
 {
 	use ComponentTrait;
 
 	public function __construct()
 	{
-		parent::__construct(TelegramLink::class);
+		parent::__construct(Types::instanceof(TelegramLink::class));
 	}
 
 	/**

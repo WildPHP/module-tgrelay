@@ -8,7 +8,8 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use WildPHP\Core\ComponentTrait;
+use Yoshi2889\Container\ComponentInterface;
+use Yoshi2889\Container\ComponentTrait;
 
 /**
  * Class TgLog
@@ -16,7 +17,7 @@ use WildPHP\Core\ComponentTrait;
  *
  * Simple wrapper around the TgLog object, to allow it to sit in a container.
  */
-class TgLog extends \unreal4u\TelegramAPI\TgLog
+class TgLog extends \unreal4u\TelegramAPI\TgLog implements ComponentInterface
 {
 	use ComponentTrait;
 }
