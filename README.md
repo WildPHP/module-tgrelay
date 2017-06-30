@@ -32,7 +32,7 @@ telegram:
     uri: 'http://localhost:9093'
     botID: 'your bot ID here'
     channels:
-        'id': 'channel'
+        'chat_id': 'irc_channel'
 ```
 
 ## Usage
