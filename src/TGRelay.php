@@ -78,12 +78,8 @@ class TGRelay
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
-		$channelMap = Configuration::fromContainer($container)
-			->get('telegram.channels')
-			->getValue();
-		$botID = Configuration::fromContainer($container)
-			->get('telegram.botID')
-			->getValue();
+		$channelMap = Configuration::fromContainer($container)['telegram']['channels'];
+		$botID = Configuration::fromContainer($container)['telegram']['botID'];
 
 		$tgBot = new TgLog($botID);
 		$this->self = $tgBot->performApiRequest(new GetMe());
@@ -149,15 +145,9 @@ class TGRelay
 
 	public function setupFileServer()
 	{
-		$port = Configuration::fromContainer($this->getContainer())
-			->get('telegram.port')
-			->getValue();
-		$listenOn = Configuration::fromContainer($this->getContainer())
-			->get('telegram.listenOn')
-			->getValue();
-		$baseURI = Configuration::fromContainer($this->getContainer())
-			->get('telegram.uri')
-			->getValue();
+		$port = Configuration::fromContainer($this->getContainer())['telegram']['port'];
+		$listenOn = Configuration::fromContainer($this->getContainer())['telegram']['listenOn'];
+		$baseURI = Configuration::fromContainer($this->getContainer())['telegram']['uri'];
 
 		$fileServer = new FileServer($this->getContainer(), $port, $listenOn, $baseURI);
 		$this->setFileServer($fileServer);
