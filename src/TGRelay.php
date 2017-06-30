@@ -359,8 +359,10 @@ class TGRelay
 				trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
 			$message = '[TG] <' . static::colorNickname($nickname) . '> ' . $message;
 
+			$privmsg = new PRIVMSG($associatedChannel, $message);
+			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())
-				->privmsg($associatedChannel, $message);
+				->insertMessage($privmsg);
 		}
 	}
 
@@ -408,8 +410,10 @@ class TGRelay
 
 		$message = '[TG] ' . $message;
 
+		$privmsg = new PRIVMSG($associatedChannel, $message);
+		$privmsg->setMessageParameters(['relay_ignore']);
 		Queue::fromContainer($this->getContainer())
-			->privmsg($associatedChannel, $message);
+			->insertMessage($privmsg);
 	}
 
 	/**
@@ -423,7 +427,7 @@ class TGRelay
 		$channel = $privmsg->getChannel();
 		$chat_id = $this->getChannelMap()->findIDForChannel($channel);
 
-		if (!$chat_id || substr($privmsg->getMessage(), 0, 4) == '[TG]')
+		if (!$chat_id || in_array('relay_ignore', $privmsg->getMessageParameters()))
 			return;
 
 		$sendMessage = new SendMessage();
