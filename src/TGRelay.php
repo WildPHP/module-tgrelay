@@ -211,6 +211,7 @@ class TGRelay
 			'sticker',
 			'video',
 			'video_note',
+			'voice',
 			'venue',
 			'new_chat_members',
 			'left_chat_member',
