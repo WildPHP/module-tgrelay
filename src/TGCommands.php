@@ -11,6 +11,7 @@ namespace WildPHP\Modules\TGRelay;
 
 use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
+use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\Logger\Logger;
@@ -51,7 +52,9 @@ class TGCommands
 		$command = implode(' ', $args);
 
 		$msg1 = '[TG] ' . $username . ' issued command: ' . $command;
-		Queue::fromContainer($this->getContainer())->privmsg($channel, $msg1);
+		$privmsg = new PRIVMSG($channel, $msg1);
+		$privmsg->setMessageParameters(['relay_ignore']);
+		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
 		Queue::fromContainer($this->getContainer())->privmsg($channel, $command);
 	}
 
@@ -67,6 +70,8 @@ class TGCommands
 		$command = implode(' ', $args);
 
 		$msg = '[TG] *' . $username . ' ' . $command . '*';
-		Queue::fromContainer($this->getContainer())->privmsg($channel, $msg);
+		$privmsg = new PRIVMSG($channel, $msg);
+		$privmsg->setMessageParameters(['relay_ignore']);
+		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
 	}
 }
