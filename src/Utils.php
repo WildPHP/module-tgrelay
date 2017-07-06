@@ -78,7 +78,7 @@ class Utils
 	public static function getUpdateType(Update $update): string
 	{
 		//@formatter:off
-		$toPoke = ['audio', 'contact', 'document', 'entities', 'game', 'location', 'photo', 'sticker', 'video', 'video_note', 'voice',
+		$toPoke = ['audio', 'contact', 'entities', 'game', 'location', 'photo', 'sticker', 'video', 'video_note', 'voice', 'document',
 			'venue', 'new_chat_members', 'left_chat_member', 'new_chat_title', 'new_chat_photo', 'delete_chat_photo', 'migrate_to_chat_id',
 			'migrate_from_chat_id', 'pinned_message', 'invoice', 'successful_payment'];
 		//@formatter:on
