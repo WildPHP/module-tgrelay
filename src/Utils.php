@@ -22,14 +22,17 @@ class Utils
 {
 	/**
 	 * @param Update $update
+	 * @param bool $originIsBot
 	 *
 	 * @return bool|string
-	 *
 	 */
-	public static function getReplyUsername(Update $update)
+	public static function getReplyUsername(Update $update, bool $originIsBot = false)
 	{
 		if (empty($update->message->reply_to_message))
 			return false;
+
+		if (!$originIsBot)
+			return $update->message->reply_to_message->from->username;
 
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $update->message->reply_to_message->text, $matches);

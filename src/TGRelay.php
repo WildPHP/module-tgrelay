@@ -65,7 +65,7 @@ class TGRelay extends BaseModule
 		$container->add($this->botObject);
 
 		$channelMap = $this->setupChannelMap($channelMap);
-		new UpdateHandler($container, $channelMap, $baseURI);
+		new UpdateHandler($container, $channelMap, $this->self, $baseURI);
 		new IrcMessageHandler($container, $this->botObject, $channelMap);
 		new FileServer($this->getContainer(), $port, $listenOn);
 

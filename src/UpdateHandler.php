@@ -8,6 +8,7 @@
 
 namespace WildPHP\Modules\TGRelay;
 
+use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
@@ -36,17 +37,24 @@ class UpdateHandler
 	protected $channelMap;
 
 	/**
+	 * @var TelegramTypes
+	 */
+	protected $self;
+
+	/**
 	 * UpdateHandler constructor.
 	 *
 	 * @param ComponentContainer $container
 	 * @param ChannelMap $channelMap
+	 * @param TelegramTypes $self
 	 * @param string $baseURL
 	 */
-	public function __construct(ComponentContainer $container, ChannelMap $channelMap, string $baseURL)
+	public function __construct(ComponentContainer $container, ChannelMap $channelMap, TelegramTypes $self, string $baseURL)
 	{
 		$this->baseURL = $baseURL;
 		$this->setContainer($container);
 		$this->channelMap = $channelMap;
+		$this->self = $self;
 
 		EventEmitter::fromContainer($container)
 			->on('telegram.msg.in', [$this, 'routeUpdate']);
@@ -132,12 +140,11 @@ class UpdateHandler
 
 		foreach ($messages as $message)
 		{
-			if (($replyUsername = Utils::getReplyUsername($update)))
+			$originIsBot = $update->message->from->username == $this->self->username;
+			if (($replyUsername = Utils::getReplyUsername($update, $originIsBot)))
 				$message = '@' . TextFormatter::consistentStringColor($replyUsername) . ': ' . $message;
 
-			$nickname = !empty($update->message->from->username) ? $update->message->from->username :
-				trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
-			$message = '[TG] <' . TextFormatter::consistentStringColor($nickname) . '> ' . $message;
+			$message = '[TG] <' . TextFormatter::consistentStringColor(Utils::getSender($update)) . '> ' . $message;
 
 			$privmsg = new PRIVMSG($channel, $message);
 			$privmsg->setMessageParameters(['relay_ignore']);
@@ -334,7 +341,8 @@ class UpdateHandler
 	protected function formatDownloadMessage(Update $update, string $url, string $fileSpecificMessage)
 	{
 		$sender = TextFormatter::consistentStringColor(Utils::getSender($update));
-		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update) ?? '');
+		$originIsBot = $update->message->from->username == $this->self->username;
+		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
 		$caption = TextFormatter::italic(Utils::getCaption($update));
 
 		$msg = '[TG] ';
