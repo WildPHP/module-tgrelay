@@ -304,7 +304,7 @@ class UpdateHandler
 			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
 				throw new DownloadException();
 
-			$uri = urlencode($this->baseURL . '/' . sha1($chat_id) . '/' . $file->getFile()->file_path);
+			$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . urlencode($file->getFile()->file_path);
 
 			$file->setPath($fullPath);
 			$file->setUri($uri);
@@ -350,7 +350,7 @@ class UpdateHandler
 		if (!empty($reply))
 			$msg .= '@' . $reply . ': ';
 
-		$msg .= $sender . ' ' . $fileSpecificMessage . ': ' . urlencode($url);
+		$msg .= $sender . ' ' . $fileSpecificMessage . ': ' . $url;
 
 		if (!empty($caption))
 			$msg .= ' (' . $caption . ')';
