@@ -32,8 +32,8 @@ class FileServer
 
 		$http = new \React\Http\Server(function (ServerRequestInterface $request) use ($container)
 		{
-			$path = $request->getUri()
-				->getPath();
+			$path = urldecode($request->getUri()
+				->getPath());
 			$path = WPHP_ROOT_DIR . 'tgstorage' . $path;
 
 			if (!file_exists($path) || is_dir($path))
