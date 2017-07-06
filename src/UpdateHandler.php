@@ -90,7 +90,8 @@ class UpdateHandler
 	{
 		$text = $update->message->text;
 		$chat_id = $update->message->chat->id;
-		$username = Utils::getSender($update);
+		$originIsBot = $update->message->from->username == $this->self->username;
+		$username = Utils::getSender($update, $originIsBot);
 		$coloredUsername = TextFormatter::consistentStringColor($username);
 
 		$result = TGCommandHandler::fromContainer($this->getContainer())
