@@ -17,6 +17,9 @@ class ChannelMap extends Collection implements ComponentInterface
 {
 	use ComponentTrait;
 
+	/**
+	 * ChannelMap constructor.
+	 */
 	public function __construct()
 	{
 		parent::__construct(Types::instanceof(TelegramLink::class));

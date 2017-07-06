@@ -18,6 +18,13 @@ class FileServer
 {
 	use ContainerTrait;
 
+	/**
+	 * FileServer constructor.
+	 *
+	 * @param ComponentContainer $container
+	 * @param int $port
+	 * @param string $listenOn
+	 */
 	public function __construct(ComponentContainer $container, int $port, string $listenOn)
 	{
 		$this->setContainer($container);
