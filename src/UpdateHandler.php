@@ -67,15 +67,7 @@ class UpdateHandler
 	 */
 	public function audio(Update $update, TgLog $telegram, string $channel)
 	{
-		$promise = $this->downloadFileForUpdate($update, $telegram, $update->message->audio->file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'uploaded an audio file');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $update->message->audio->file_id, 'uploaded an audio file');
 	}
 
 	/**
@@ -85,15 +77,7 @@ class UpdateHandler
 	 */
 	public function document(Update $update, TgLog $telegram, string $channel)
 	{
-		$promise = $this->downloadFileForUpdate($update, $telegram, $update->message->document->file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'uploaded a document');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $update->message->document->file_id, 'uploaded a document');
 	}
 
 	/**
@@ -162,15 +146,7 @@ class UpdateHandler
 	{
 		// Get the largest size.
 		$file_id = end($update->message->photo)->file_id;
-		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'uploaded a picture');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $file_id, 'uploaded a picture');
 	}
 
 	/**
@@ -180,15 +156,7 @@ class UpdateHandler
 	 */
 	public function sticker(Update $update, TgLog $telegram, string $channel)
 	{
-		$promise = $this->downloadFileForUpdate($update, $telegram, $update->message->sticker->file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'sent a sticker to the group');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $update->message->sticker->file_id, 'sent a sticker to the group');
 	}
 
 	/**
@@ -198,15 +166,7 @@ class UpdateHandler
 	 */
 	public function video(Update $update, TgLog $telegram, string $channel)
 	{
-		$promise = $this->downloadFileForUpdate($update, $telegram, $update->message->video->file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'uploaded a video');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $update->message->video->file_id, 'uploaded a video');
 	}
 
 	/**
@@ -216,15 +176,7 @@ class UpdateHandler
 	 */
 	public function voice(Update $update, TgLog $telegram, string $channel)
 	{
-		$promise = $this->downloadFileForUpdate($update, $telegram, $update->message->voice->file_id);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $channel)
-		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), 'sent a voice message');
-			$privmsg = new PRIVMSG($channel, $msg);
-			$privmsg->setMessageParameters(['relay_ignore']);
-			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-		});
+		$this->genericDownloadableFile($update, $telegram, $channel, $update->message->voice->file_id, 'sent a voice message');
 	}
 
 	/**
@@ -333,6 +285,26 @@ class UpdateHandler
 
 	/**
 	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $channel
+	 * @param $file_id
+	 * @param string $fileSpecificMessage
+	 */
+	public function genericDownloadableFile(Update $update, TgLog $telegram, string $channel, $file_id, string $fileSpecificMessage)
+	{
+		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
+
+		$promise->then(function (DownloadedFile $file) use ($update, $channel, $fileSpecificMessage)
+		{
+			$msg = $this->formatDownloadMessage($update, $file->getUri(), $fileSpecificMessage);
+			$privmsg = new PRIVMSG($channel, $msg);
+			$privmsg->setMessageParameters(['relay_ignore']);
+			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+		});
+	}
+
+	/**
+	 * @param Update $update
 	 * @param string $url
 	 * @param string $fileSpecificMessage
 	 *
@@ -395,6 +367,4 @@ class UpdateHandler
 	{
 		return $this->channelMap;
 	}
-
-
 }
