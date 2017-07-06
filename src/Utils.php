@@ -32,7 +32,8 @@ class Utils
 			return false;
 
 		if (!$originIsBot)
-			return $update->message->reply_to_message->from->username;
+			return !empty($update->message->reply_to_message->from->username) ? $update->message->reply_to_message->from->username :
+				trim($update->message->reply_to_message->from->first_name . ' ' . $update->message->reply_to_message->from->last_name);
 
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $update->message->reply_to_message->text, $matches);
