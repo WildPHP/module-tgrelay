@@ -80,7 +80,7 @@ class Utils
 		//@formatter:off
 		$toPoke = ['audio', 'contact', 'entities', 'game', 'location', 'photo', 'sticker', 'video', 'video_note', 'voice', 'document',
 			'venue', 'new_chat_members', 'left_chat_member', 'new_chat_title', 'new_chat_photo', 'delete_chat_photo', 'migrate_to_chat_id',
-			'migrate_from_chat_id', 'pinned_message', 'invoice', 'successful_payment'];
+			'migrate_from_chat_id', 'pinned_message', 'invoice', 'successful_payment', 'new_chat_member'];
 		//@formatter:on
 
 		foreach ($toPoke as $item)
