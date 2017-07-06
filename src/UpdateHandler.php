@@ -295,16 +295,16 @@ class UpdateHandler
 		/** @var File $file */
 		$file = $telegram
 			->performApiRequest($getFile);
+
+		$fullPath = $basePath . '/' . $file->file_path;
 		$promise = $telegram->downloadFileAsync($file);
 
-		$promise->then(function (DownloadedFile $file) use ($update, $basePath, $chat_id)
+		$promise->then(function (DownloadedFile $file) use ($update, $basePath, $chat_id, $fullPath)
 		{
-			$fullPath = $basePath . '/' . $file->getFile()->file_path;
-
 			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
 				throw new DownloadException();
 
-			$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . urlencode($file->getFile()->file_path);
+			$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($file->getFile()->file_path));
 
 			$file->setPath($fullPath);
 			$file->setUri($uri);
@@ -343,7 +343,7 @@ class UpdateHandler
 		$sender = TextFormatter::consistentStringColor(Utils::getSender($update));
 		$originIsBot = $update->message->from->username == $this->self->username;
 		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
-		$caption = TextFormatter::italic(Utils::getCaption($update));
+		$caption = Utils::getCaption($update);
 
 		$msg = '[TG] ';
 
