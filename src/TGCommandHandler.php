@@ -10,7 +10,6 @@ namespace WildPHP\Modules\TGRelay;
 
 
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
-use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;

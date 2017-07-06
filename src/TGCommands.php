@@ -8,8 +8,6 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-
-use unreal4u\TelegramAPI\TgLog;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
