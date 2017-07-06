@@ -25,11 +25,12 @@ use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
+use WildPHP\Core\Modules\BaseModule;
 use WildPHP\Core\Tasks\Task;
 use WildPHP\Core\Tasks\TaskController;
 use Yoshi2889\Collections\Collection;
 
-class TGRelay
+class TGRelay extends BaseModule
 {
 	use ContainerTrait;
 
