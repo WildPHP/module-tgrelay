@@ -408,7 +408,7 @@ class TGRelay extends BaseModule
 			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
 				throw new DownloadException();
 
-			$uri = $this->baseURI . '/' . sha1($chat_id) . '/' . $file->getFile()->file_path;
+			$uri = urlencode($this->baseURI . '/' . sha1($chat_id) . '/' . $file->getFile()->file_path);
 
 			$replyText = ($replyUsername = $this->getReplyUsername($update)) ? ' in reply to ' . static::colorNickname($replyUsername) : '';
 			$nickname = !empty($update->message->from->username) ? $update->message->from->username :
