@@ -68,10 +68,10 @@ class TGRelay extends BaseModule
 		new UpdateHandler($container, $channelMap, $baseURI);
 		new IrcMessageHandler($container, $this->botObject, $channelMap);
 		new FileServer($this->getContainer(), $port, $listenOn);
-		new TGCommands($container);
 
 		$commandHandler = new TGCommandHandler($container, new Collection(Types::instanceof(Command::class)));
 		$container->add($commandHandler);
+		new TGCommands($container);
 
 		$task = new Task([$this, 'fetchTelegramMessages'], 1, [$container], 1);
 		TaskController::fromContainer($container)
