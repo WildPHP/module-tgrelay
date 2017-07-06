@@ -9,10 +9,12 @@
 namespace WildPHP\Modules\TGRelay;
 
 use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
+use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
 use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
+use unreal4u\TelegramAPI\Telegram\Types\File;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
 use ValidationClosures\Types;
 use WildPHP\Core\Commands\Command;
@@ -71,6 +73,8 @@ class TGRelay extends BaseModule
 	 */
 	protected $lastUpdateID = 0;
 
+	protected $baseURI = '';
+
 	/**
 	 * TGRelay constructor.
 	 *
@@ -81,8 +85,10 @@ class TGRelay extends BaseModule
 		$this->setContainer($container);
 		$channelMap = Configuration::fromContainer($container)['telegram']['channels'];
 		$botID = Configuration::fromContainer($container)['telegram']['botID'];
+		$baseURI = Configuration::fromContainer($container)['telegram']['uri'];
+		$this->baseURI = $baseURI;
 
-		$tgBot = new TgLog($botID);
+		$tgBot = new TgLog($botID, $container->getLoop());
 		$this->self = $tgBot->performApiRequest(new GetMe());
 		$container->add($tgBot);
 
@@ -148,10 +154,8 @@ class TGRelay extends BaseModule
 	{
 		$port = Configuration::fromContainer($this->getContainer())['telegram']['port'];
 		$listenOn = Configuration::fromContainer($this->getContainer())['telegram']['listenOn'];
-		$baseURI = Configuration::fromContainer($this->getContainer())['telegram']['uri'];
 
-		$fileServer = new FileServer($this->getContainer(), $port, $listenOn, $baseURI);
-		$this->setFileServer($fileServer);
+		$this->fileServer = new FileServer($this->getContainer(), $port, $listenOn);
 	}
 
 	/**
@@ -386,26 +390,49 @@ class TGRelay extends BaseModule
 		if (empty($associatedChannel))
 			return;
 
-		$uri = $this->getFileServer()
-			->downloadFile($file_id, $update->message->chat->id, $telegram);
+		$chat_id = $update->message->chat->id;
+		$basePath = $telegram->makeFileStructure($chat_id);
 
-		if (empty($uri))
-			return;
+		$getFile = new GetFile();
+		$getFile->file_id = $file_id;
 
-		$replyText = ($replyUsername = $this->getReplyUsername($update)) ? ' in reply to ' . static::colorNickname($replyUsername) : '';
-		$nickname = !empty($update->message->from->username) ? $update->message->from->username :
-			trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
-		$message = static::colorNickname($nickname) . ' ' . $fileMessage . $replyText . ': ' . $uri;
+		/** @var File $file */
+		$file = $telegram
+			->performApiRequest($getFile);
+		$promise = $telegram->downloadFileAsync($file);
 
-		if (!empty($update->message->caption))
-			$message .= ' (' . $update->message->caption . ')';
+		$promise->then(function (DownloadedFile $file) use ($update, $associatedChannel, $telegram, $fileMessage, $chat_id, $basePath)
+		{
+			$fullPath = $basePath . '/' . $file->getFile()->file_path;
 
-		$message = '[TG] ' . $message;
+			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
+				throw new DownloadException();
 
-		$privmsg = new PRIVMSG($associatedChannel, $message);
-		$privmsg->setMessageParameters(['relay_ignore']);
-		Queue::fromContainer($this->getContainer())
-			->insertMessage($privmsg);
+			$uri = $this->baseURI . '/' . sha1($chat_id) . '/' . $file->getFile()->file_path;
+
+			$replyText = ($replyUsername = $this->getReplyUsername($update)) ? ' in reply to ' . static::colorNickname($replyUsername) : '';
+			$nickname = !empty($update->message->from->username) ? $update->message->from->username :
+				trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
+			$message = static::colorNickname($nickname) . ' ' . $fileMessage . $replyText . ': ' . $uri;
+
+			if (!empty($update->message->caption))
+				$message .= ' (' . $update->message->caption . ')';
+
+			$message = '[TG] ' . $message;
+
+			$privmsg = new PRIVMSG($associatedChannel, $message);
+			$privmsg->setMessageParameters(['relay_ignore']);
+			Queue::fromContainer($this->getContainer())
+				->insertMessage($privmsg);
+		}, function () use ($telegram, $update, $chat_id)
+		{
+			$sendMessage = new SendMessage();
+			$sendMessage->chat_id = $chat_id;
+			$sendMessage->text = 'Failed to relay file';
+			$telegram->performApiRequest($sendMessage);
+
+			return false;
+		});
 	}
 
 	/**
@@ -530,14 +557,6 @@ class TGRelay extends BaseModule
 	public function getFileServer(): FileServer
 	{
 		return $this->fileServer;
-	}
-
-	/**
-	 * @param FileServer $fileServer
-	 */
-	public function setFileServer(FileServer $fileServer)
-	{
-		$this->fileServer = $fileServer;
 	}
 
 	/**
