@@ -125,7 +125,8 @@ class UpdateHandler
 
 		foreach ($messages as $message)
 		{
-			$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
+			$originIsBot = empty($update->message->reply_to_message) ? false :
+				$update->message->reply_to_message->from->username == $this->self->username;
 			if (($replyUsername = Utils::getReplyUsername($update, $originIsBot)))
 				$message = '@' . TextFormatter::consistentStringColor($replyUsername) . ': ' . $message;
 
