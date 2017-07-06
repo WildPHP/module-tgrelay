@@ -125,7 +125,7 @@ class UpdateHandler
 
 		foreach ($messages as $message)
 		{
-			$originIsBot = $update->message->from->username == $this->self->username;
+			$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
 			if (($replyUsername = Utils::getReplyUsername($update, $originIsBot)))
 				$message = '@' . TextFormatter::consistentStringColor($replyUsername) . ': ' . $message;
 
@@ -369,7 +369,7 @@ class UpdateHandler
 	protected function formatDownloadMessage(Update $update, string $url, string $fileSpecificMessage)
 	{
 		$sender = TextFormatter::consistentStringColor(Utils::getSender($update));
-		$originIsBot = $update->message->from->username == $this->self->username;
+		$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
 		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
 		$caption = Utils::getCaption($update);
 
