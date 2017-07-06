@@ -13,6 +13,7 @@ use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
+use unreal4u\TelegramAPI\Telegram\Types\User;
 use WildPHP\Core\Channels\ChannelCollection;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
@@ -227,6 +228,61 @@ class UpdateHandler
 	public function invoice(Update $update, TgLog $telegram, string $channel)
 	{
 		$this->unsupported($update, $telegram, $channel);
+	}
+
+	/**
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $channel
+	 */
+	public function new_chat_members(Update $update, TgLog $telegram, string $channel)
+	{
+		$newMembers = $update->message->new_chat_members;
+		$from = Utils::getSender($update);
+
+		/** @var User $member */
+		foreach ($newMembers as $member)
+		{
+			$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
+			$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
+
+			$privmsg = new PRIVMSG($channel, $msg);
+			$privmsg->setMessageParameters(['relay_ignore']);
+			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+		}
+	}
+
+	/**
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $channel
+	 */
+	public function new_chat_member(Update $update, TgLog $telegram, string $channel)
+	{
+		$member = $update->message->new_chat_member;
+		$from = Utils::getSender($update);
+		$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
+		$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
+
+		$privmsg = new PRIVMSG($channel, $msg);
+		$privmsg->setMessageParameters(['relay_ignore']);
+		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+	}
+
+	/**
+	 * @param Update $update
+	 * @param TgLog $telegram
+	 * @param string $channel
+	 */
+	public function left_chat_member(Update $update, TgLog $telegram, string $channel)
+	{
+		$member = $update->message->left_chat_member;
+		$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
+		$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' left the Telegram group.';
+
+		$privmsg = new PRIVMSG($channel, $msg);
+		$privmsg->setMessageParameters(['relay_ignore']);
+		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
 	}
 
 	/**
