@@ -372,7 +372,7 @@ class UpdateHandler
 			->findChannelForID($chat_id);
 
 		// Don't bother processing if we aren't in the channel...
-		if (!empty($channel) && !ChannelCollection::fromContainer($this->getContainer())->containsChannelByName($channel))
+		if (!empty($channel) && !ChannelCollection::fromContainer($this->getContainer())->containsChannelName($channel))
 			return;
 
 		$type = Utils::getUpdateType($update);
