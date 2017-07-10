@@ -20,10 +20,10 @@ use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Modules\BaseModule;
-use WildPHP\Core\Tasks\TaskController;
 use Yoshi2889\Collections\Collection;
 use Yoshi2889\Tasks\CallbackTask;
 use Yoshi2889\Tasks\RepeatableTask;
+use Yoshi2889\Tasks\TaskController;
 
 class TGRelay extends BaseModule
 {
@@ -44,7 +44,15 @@ class TGRelay extends BaseModule
 	 */
 	protected $lastUpdateID = 0;
 
+	/**
+	 * @var string
+	 */
 	protected $baseURI = '';
+
+	/**
+	 * @var TaskController
+	 */
+	protected $taskController;
 
 	/**
 	 * TGRelay constructor.
@@ -74,10 +82,10 @@ class TGRelay extends BaseModule
 		$container->add($commandHandler);
 		new TGCommands($container);
 
+		$this->taskController = new TaskController($container->getLoop());
 		$callbackTask = new CallbackTask([$this, 'fetchTelegramMessages'], 0, [$container]);
 		$task = new RepeatableTask($callbackTask, 1);
-		TaskController::fromContainer($container)
-			->addTask($task);
+		$this->taskController->add($task);
 
 		EventEmitter::fromContainer($container)
 			->on('wildphp.init-modules.after', function () use ($commandHandler, $container)
@@ -110,10 +118,9 @@ class TGRelay extends BaseModule
 	}
 
 	/**
-	 * @param Task $task
 	 * @param ComponentContainer $container
 	 */
-	public function fetchTelegramMessages(Task $task, ComponentContainer $container)
+	public function fetchTelegramMessages(ComponentContainer $container)
 	{
 		$tgLog = $this->getBotObject();
 		$getUpdates = new GetUpdates();
