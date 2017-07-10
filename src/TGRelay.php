@@ -20,9 +20,10 @@ use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Modules\BaseModule;
-use WildPHP\Core\Tasks\Task;
 use WildPHP\Core\Tasks\TaskController;
 use Yoshi2889\Collections\Collection;
+use Yoshi2889\Tasks\CallbackTask;
+use Yoshi2889\Tasks\RepeatableTask;
 
 class TGRelay extends BaseModule
 {
@@ -73,7 +74,8 @@ class TGRelay extends BaseModule
 		$container->add($commandHandler);
 		new TGCommands($container);
 
-		$task = new Task([$this, 'fetchTelegramMessages'], 1, [$container], 1);
+		$callbackTask = new CallbackTask([$this, 'fetchTelegramMessages'], 0, [$container]);
+		$task = new RepeatableTask($callbackTask, 1);
 		TaskController::fromContainer($container)
 			->addTask($task);
 
