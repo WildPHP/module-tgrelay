@@ -93,7 +93,7 @@ class UpdateHandler
 	{
 		$text = $update->message->text;
 		$chat_id = $update->message->chat->id;
-		$username = Utils::getSender($update);
+		$username = Utils::getUsernameForUser($update->message->from);
 		$coloredUsername = TextFormatter::consistentStringColor($username);
 
 		$result = TGCommandHandler::fromContainer($this->getContainer())
@@ -133,7 +133,7 @@ class UpdateHandler
 			if (($replyUsername = Utils::getReplyUsername($update, $originIsBot)))
 				$message = '@' . TextFormatter::consistentStringColor($replyUsername) . ': ' . $message;
 
-			$message = '[TG] <' . TextFormatter::consistentStringColor(Utils::getSender($update)) . '> ' . $message;
+			$message = '[TG] <' . TextFormatter::consistentStringColor(Utils::getUsernameForUser($update->message->from)) . '> ' . $message;
 
 			$privmsg = new PRIVMSG($channel, $message);
 			$privmsg->setMessageParameters(['relay_ignore']);
@@ -242,12 +242,12 @@ class UpdateHandler
 	public function new_chat_members(Update $update, TgLog $telegram, string $channel)
 	{
 		$newMembers = $update->message->new_chat_members;
-		$from = Utils::getSender($update);
+		$from = Utils::getUsernameForUser($update->message->from);
 
 		/** @var User $member */
 		foreach ($newMembers as $member)
 		{
-			$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
+			$nickname = Utils::getUsernameForUser($member);
 			$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
 
 			$privmsg = new PRIVMSG($channel, $msg);
@@ -279,6 +279,7 @@ class UpdateHandler
 				$sendMessage->text = $msg;
 				$sendMessage->reply_to_message_id = $update->message->message_id;
 				$sendMessage->parse_mode = 'Markdown';
+				$sendMessage->disable_web_page_preview = true;
 				$telegram->performApiRequest($sendMessage);
 			}
 		}
@@ -292,7 +293,7 @@ class UpdateHandler
 	public function new_chat_member(Update $update, TgLog $telegram, string $channel)
 	{
 		$member = $update->message->new_chat_member;
-		$from = Utils::getSender($update);
+		$from = Utils::getUsernameForUser($update->message->from);
 		$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
 		$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
 
@@ -400,7 +401,7 @@ class UpdateHandler
 	 */
 	protected function formatDownloadMessage(Update $update, string $url, string $fileSpecificMessage)
 	{
-		$sender = TextFormatter::consistentStringColor(Utils::getSender($update));
+		$sender = TextFormatter::consistentStringColor(Utils::getUsernameForUser($update->message->from));
 		$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
 		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
 		$caption = Utils::getCaption($update);

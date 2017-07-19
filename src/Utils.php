@@ -17,9 +17,19 @@ namespace WildPHP\Modules\TGRelay;
 
 
 use unreal4u\TelegramAPI\Telegram\Types\Update;
+use unreal4u\TelegramAPI\Telegram\Types\User;
 
 class Utils
 {
+	/**
+	 * @param User $user
+	 *
+	 * @return string
+	 */
+	public static function getUsernameForUser(User $user)
+	{
+		return !empty($user->username) ? $user->username : trim($user->first_name . ' ' . $user->last_name);
+	}
 	/**
 	 * @param Update $update
 	 * @param bool $originIsBot
@@ -32,8 +42,7 @@ class Utils
 			return false;
 
 		if (!$originIsBot)
-			return !empty($update->message->reply_to_message->from->username) ? $update->message->reply_to_message->from->username :
-				trim($update->message->reply_to_message->from->first_name . ' ' . $update->message->reply_to_message->from->last_name);
+			return static::getUsernameForUser($update->message->from);
 
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $update->message->reply_to_message->text, $matches);
@@ -57,17 +66,6 @@ class Utils
 			return false;
 
 		return $update->message->caption;
-	}
-
-	/**
-	 * @param Update $update
-	 *
-	 * @return string
-	 */
-	public static function getSender(Update $update)
-	{
-		return !empty($update->message->from->username) ? $update->message->from->username :
-			trim($update->message->from->first_name . ' ' . $update->message->from->last_name);
 	}
 
 	/**
