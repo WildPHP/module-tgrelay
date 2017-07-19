@@ -22,6 +22,9 @@ use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
+use WildPHP\Core\Modules\ModuleFactory;
+use WildPHP\Modules\Factoids\Factoid;
+use WildPHP\Modules\Factoids\Factoids;
 
 class UpdateHandler
 {
@@ -250,6 +253,34 @@ class UpdateHandler
 			$privmsg = new PRIVMSG($channel, $msg);
 			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+
+			// Send a welcome message.
+			if (ModuleFactory::fromContainer($this->getContainer())->isModuleLoaded(Factoids::class))
+			{
+				/** @var Factoids $factoidsModule */
+				$factoidsModule = ModuleFactory::fromContainer($this->getContainer())->getModuleInstance(Factoids::class);
+
+				/** @var Factoid $factoid */
+				if (!($factoid = $factoidsModule->getFactoid('tg_welcome', $channel)))
+					return;
+
+				$msg = $factoid->getContents();
+
+				// TODO: Make generic escape function
+				$nickname = strtr($nickname, [
+					'*' => '\*',
+					'_' => '\_',
+					'`' => '\`'
+				]);
+				$msg = str_ireplace('$nick', $nickname, $msg);
+
+				$sendMessage = new SendMessage();
+				$sendMessage->chat_id = $update->message->chat->id;
+				$sendMessage->text = $msg;
+				$sendMessage->reply_to_message_id = $update->message->message_id;
+				$sendMessage->parse_mode = 'Markdown';
+				$telegram->performApiRequest($sendMessage);
+			}
 		}
 	}
 
