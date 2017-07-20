@@ -42,7 +42,7 @@ class Utils
 			return false;
 
 		if (!$originIsBot)
-			return static::getUsernameForUser($update->message->from);
+			return static::getUsernameForUser($update->message->reply_to_message->from);
 
 		// This accounts for both normal messages and CTCP ACTION ones.
 		$result = preg_match('/^<(\S+)>|^\*(\S+) /', $update->message->reply_to_message->text, $matches);
