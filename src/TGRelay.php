@@ -12,6 +12,7 @@ use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
 use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
 use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
+use unreal4u\TelegramAPI\Telegram\Types\Update;
 use ValidationClosures\Types;
 use WildPHP\Core\Commands\Command;
 use WildPHP\Core\ComponentContainer;
@@ -135,6 +136,7 @@ class TGRelay extends BaseModule
 				return;
 
 			$lastUpdateID = 0;
+			/** @var Update $update */
 			foreach ($updates->traverseObject() as $update)
 			{
 				EventEmitter::fromContainer($container)
@@ -178,5 +180,13 @@ class TGRelay extends BaseModule
 	public function setLastUpdateID(int $lastUpdateID)
 	{
 		$this->lastUpdateID = $lastUpdateID;
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function getSupportedVersionConstraint(): string
+	{
+		return '^3.0.0';
 	}
 }
