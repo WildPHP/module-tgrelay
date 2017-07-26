@@ -22,6 +22,8 @@ class TGCommandHandler extends CommandHandler
 {
 	use ComponentTrait;
 
+	/** @noinspection PhpMissingParentConstructorInspection */
+
 	/**
 	 * CommandHandler constructor.
 	 *
