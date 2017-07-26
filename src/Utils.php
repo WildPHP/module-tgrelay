@@ -6,13 +6,6 @@
  * See the LICENSE file for more information.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 6-7-2017
- * Time: 17:07
- */
-
 namespace WildPHP\Modules\TGRelay;
 
 
