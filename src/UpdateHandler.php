@@ -10,7 +10,6 @@ namespace WildPHP\Modules\TGRelay;
 
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
-use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
 use unreal4u\TelegramAPI\InternalFunctionality\TelegramDocument;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
@@ -53,10 +52,10 @@ class UpdateHandler
 	 *
 	 * @param ComponentContainer $container
 	 * @param ChannelMap $channelMap
-	 * @param TelegramTypes $self
+	 * @param User $self
 	 * @param string $baseURL
 	 */
-	public function __construct(ComponentContainer $container, ChannelMap $channelMap, TelegramTypes $self, string $baseURL)
+	public function __construct(ComponentContainer $container, ChannelMap $channelMap, User $self, string $baseURL)
 	{
 		$this->baseURL = $baseURL;
 		$this->setContainer($container);
