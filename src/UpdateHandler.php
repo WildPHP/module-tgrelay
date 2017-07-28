@@ -8,7 +8,10 @@
 
 namespace WildPHP\Modules\TGRelay;
 
+use React\Promise\Deferred;
+use React\Promise\PromiseInterface;
 use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
+use unreal4u\TelegramAPI\InternalFunctionality\TelegramDocument;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
@@ -41,7 +44,7 @@ class UpdateHandler
 	protected $channelMap;
 
 	/**
-	 * @var TelegramTypes
+	 * @var User
 	 */
 	protected $self;
 
@@ -150,7 +153,8 @@ class UpdateHandler
 	public function photo(Update $update, TgLog $telegram, string $channel)
 	{
 		// Get the largest size.
-		$file_id = end($update->message->photo)->file_id;
+		$photoSizeArray = (array) $update->message->photo->getIterator();
+		$file_id = end($photoSizeArray)->file_id;
 		$this->genericDownloadableFile($update, $telegram, $channel, $file_id, 'uploaded a picture');
 	}
 
@@ -290,23 +294,6 @@ class UpdateHandler
 	 * @param TgLog $telegram
 	 * @param string $channel
 	 */
-	public function new_chat_member(Update $update, TgLog $telegram, string $channel)
-	{
-		$member = $update->message->new_chat_member;
-		$from = Utils::getUsernameForUser($update->message->from);
-		$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
-		$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
-
-		$privmsg = new PRIVMSG($channel, $msg);
-		$privmsg->setMessageParameters(['relay_ignore']);
-		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-	}
-
-	/**
-	 * @param Update $update
-	 * @param TgLog $telegram
-	 * @param string $channel
-	 */
 	public function left_chat_member(Update $update, TgLog $telegram, string $channel)
 	{
 		$member = $update->message->left_chat_member;
@@ -323,7 +310,7 @@ class UpdateHandler
 	 * @param TgLog $telegram
 	 * @param $file_id
 	 *
-	 * @return \React\Promise\PromiseInterface
+	 * @return PromiseInterface
 	 */
 	public function downloadFileForUpdate(Update $update, TgLog $telegram, $file_id)
 	{
@@ -333,27 +320,35 @@ class UpdateHandler
 		$getFile = new GetFile();
 		$getFile->file_id = $file_id;
 
-		/** @var File $file */
-		$file = $telegram
-			->performApiRequest($getFile);
+		$deferred = new Deferred();
 
-		$fullPath = $basePath . '/' . $file->file_path;
-		$promise = $telegram->downloadFileAsync($file);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $basePath, $chat_id, $fullPath)
+		$promise = $telegram->performApiRequest($getFile);
+		
+		$promise->then(function (File $file) use ($telegram, $basePath, $deferred, $update, $chat_id)
 		{
-			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
-				throw new DownloadException();
+			$filePath = $file->file_path;
+			$fullPath = $basePath . '/' . $file->file_path;
+			$promise = $telegram->downloadFile($file);
 
-			$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($file->getFile()->file_path));
+			$promise->then(function (TelegramDocument $file) use ($update, $basePath, $chat_id, $fullPath, $filePath, $deferred)
+			{
+				if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->contents))
+					throw new DownloadException();
 
-			$file->setPath($fullPath);
-			$file->setUri($uri);
+				$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($filePath));
 
-			return $file;
+				$file->path = $fullPath;
+				$file->uri = $uri;
+
+				$deferred->resolve($file);
+			},
+			function (\Exception $e) use ($deferred)
+			{
+				$deferred->reject(new DownloadException('An error occurred while downloading', 0, $e));
+			});
 		});
 
-		return $promise;
+		return $deferred->promise();
 	}
 
 	/**
@@ -383,9 +378,9 @@ class UpdateHandler
 	{
 		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
 
-		$promise->then(function (DownloadedFile $file) use ($update, $channel, $fileSpecificMessage)
+		$promise->then(function (TelegramDocument $file) use ($update, $channel, $fileSpecificMessage)
 		{
-			$msg = $this->formatDownloadMessage($update, $file->getUri(), $fileSpecificMessage);
+			$msg = $this->formatDownloadMessage($update, $file->uri, $fileSpecificMessage);
 			$privmsg = new PRIVMSG($channel, $msg);
 			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
