@@ -83,7 +83,7 @@ class TGRelay extends BaseModule
 		$httpClientHandler = new HttpClientRequestHandler($container->getLoop());
 		$this->botObject = new TgLog($botID, $httpClientHandler);
 
-		$commandHandler = new TGCommandHandler($container, new Collection(Types:: instanceof (Command::class)));
+		$commandHandler = new TGCommandHandler($container, new Collection(Types::instanceof(Command::class)));
 		$container->add($commandHandler);
 		new TGCommands($container);
 
