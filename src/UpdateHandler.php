@@ -336,9 +336,7 @@ class UpdateHandler
 
 				$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($filePath));
 
-				$file->path = $fullPath;
-				$file->uri = $uri;
-
+				$file = new ExtendedTelegramDocument($file, $uri, $fullPath);
 				$deferred->resolve($file);
 			},
 			function (\Exception $e) use ($deferred)
@@ -377,9 +375,9 @@ class UpdateHandler
 	{
 		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
 
-		$promise->then(function (TelegramDocument $file) use ($update, $channel, $fileSpecificMessage)
+		$promise->then(function (ExtendedTelegramDocument $file) use ($update, $channel, $fileSpecificMessage)
 		{
-			$msg = $this->formatDownloadMessage($update, $file->uri, $fileSpecificMessage);
+			$msg = $this->formatDownloadMessage($update, $file->getUri(), $fileSpecificMessage);
 			$privmsg = new PRIVMSG($channel, $msg);
 			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
