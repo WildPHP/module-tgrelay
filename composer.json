@@ -22,7 +22,5 @@
         "psr-4": {
             "WildPHP\\Modules\\TGRelay\\": "src"
         }
-    },
-    "minimum-stability": "alpha",
-    "prefer-stable": true
+    }
 }
