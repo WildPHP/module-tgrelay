@@ -318,6 +318,8 @@ class UpdateHandler
 
 		$getFile = new GetFile();
 		$getFile->file_id = $file_id;
+		
+		Logger::fromContainer($this->getContainer())->debug('[TG] Attempting to download file...', ['id' => $file_id]);
 
 		$deferred = new Deferred();
 
@@ -325,24 +327,30 @@ class UpdateHandler
 		
 		$promise->then(function (File $file) use ($telegram, $basePath, $deferred, $update, $chat_id)
 		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] File requested, initiating download...', ['id' => $file->file_id]);
 			$filePath = $file->file_path;
 			$fullPath = $basePath . '/' . $file->file_path;
 			$promise = $telegram->downloadFile($file);
 
 			$promise->then(function (TelegramDocument $file) use ($update, $basePath, $chat_id, $fullPath, $filePath, $deferred)
 			{
-				if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->contents))
+				if (!touch($fullPath) || !file_put_contents($fullPath, $file->contents))
 					throw new DownloadException();
 
 				$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($filePath));
 
 				$file = new ExtendedTelegramDocument($file, $uri, $fullPath);
 				$deferred->resolve($file);
+				Logger::fromContainer($this->getContainer())->debug('[TG] Download complete!', ['id' => $file->getPath()]);
 			},
 			function (\Exception $e) use ($deferred)
 			{
 				$deferred->reject(new DownloadException('An error occurred while downloading', 0, $e));
 			});
+		},
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
 		});
 
 		return $deferred->promise();
@@ -381,6 +389,16 @@ class UpdateHandler
 			$privmsg = new PRIVMSG($channel, $msg);
 			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+		},
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
+		});
+		
+		$promise->then(null,
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
 		});
 	}
 
@@ -394,7 +412,7 @@ class UpdateHandler
 	protected function formatDownloadMessage(Update $update, string $url, string $fileSpecificMessage)
 	{
 		$sender = TextFormatter::consistentStringColor(Utils::getUsernameForUser($update->message->from));
-		$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
+		$originIsBot = !empty($update->message->reply_to_message) && $update->message->reply_to_message->from->username == $this->self->username;
 		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
 		$caption = Utils::getCaption($update);
 
