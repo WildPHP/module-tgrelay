@@ -166,11 +166,6 @@ class TGRelay extends BaseModule
 					]);
 			}
 		});
-		
-		$promise->then(null, function ($e)
-		{
-			var_dump($e);
-		});
 	}
 
 	/**
