@@ -67,7 +67,7 @@ class TGRelay extends BaseModule
 		$this->setContainer($container);
 		$telegramConfig = Configuration::fromContainer($container)['telegram'] ?? [];
 		
-		if (empty($telegramConfig) || array_keys($telegramConfig) != ['channels', 'botID', 'uri', 'port', 'listenOn'])
+		if (empty($telegramConfig))
 		{
 			Logger::fromContainer($container)->warning('Unable to initialize Telegram module; make sure you have included all configuration ' .
 			'options in your config.neon');
@@ -151,11 +151,12 @@ class TGRelay extends BaseModule
 		$promise->then(function (UpdatesArray $updates) use ($container, $tgLog) {
 			if (empty($updates->data))
 				return;
-
-			$lastUpdateID = 0;
+			
 			/** @var Update $update */
 			foreach ($updates->getIterator() as $update)
 			{
+				$this->setLastUpdateID($update->update_id + 1);
+				
 				EventEmitter::fromContainer($container)
 					->emit('telegram.msg.in', [$update, $tgLog]);
 
@@ -163,11 +164,12 @@ class TGRelay extends BaseModule
 					->debug('[TG] Update received', [
 						'id' => $update->update_id
 					]);
-
-				$lastUpdateID = $update->update_id;
 			}
-
-			$this->setLastUpdateID($lastUpdateID + 1);
+		});
+		
+		$promise->then(null, function ($e)
+		{
+			var_dump($e);
 		});
 	}
 
