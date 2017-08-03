@@ -175,7 +175,9 @@ class TGRelay extends BaseModule
 				{
 					Logger::fromContainer($container)
 						->debug('[TG] Update received', [
-							'id' => $update->update_id
+							'id' => $update->update_id,
+							'chat_id' => $update->message->chat->id,
+							'chat_name' => (!empty($update->message->chat->title) ? $update->message->chat->title : $update->message->chat->username)
 						]);
 				}
 			}

@@ -11,7 +11,6 @@ namespace WildPHP\Modules\TGRelay;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use unreal4u\TelegramAPI\InternalFunctionality\TelegramDocument;
-use unreal4u\TelegramAPI\InternalFunctionality\TelegramResponse;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
@@ -353,11 +352,6 @@ class UpdateHandler
 		{
 			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
 		});
-		
-		$promise->then(null, function (TelegramResponse $response)
-		{
-			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $response->getException()->getMessage());
-		});
 
 		return $deferred->promise();
 	}
@@ -374,7 +368,8 @@ class UpdateHandler
 
 		$sendMessage = new SendMessage();
 		$sendMessage->chat_id = $update->message->chat->id;
-		$sendMessage->text = 'Unable to relay message to IRC because it is not supported';
+		$sendMessage->reply_to_message_id = $update->message->message_id;
+		$sendMessage->text = 'Unable to relay message to IRC because its type is not supported';
 		$telegram->performApiRequest($sendMessage);
 	}
 
