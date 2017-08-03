@@ -157,13 +157,27 @@ class TGRelay extends BaseModule
 			{
 				$this->setLastUpdateID($update->update_id + 1);
 				
-				EventEmitter::fromContainer($container)
-					->emit('telegram.msg.in', [$update, $tgLog]);
-
-				Logger::fromContainer($container)
-					->debug('[TG] Update received', [
-						'id' => $update->update_id
-					]);
+				try
+				{
+					EventEmitter::fromContainer($container)
+						->emit('telegram.msg.in', [$update, $tgLog]);
+				}
+				catch (\Throwable $e)
+				{
+					Logger::fromContainer($container)
+						->warning('[TG] Error while processing update!', [
+							'id' => $update->update_id,
+							'message' => $e->getMessage(),
+							'exception' => get_class($e)
+						]);
+				}
+				finally
+				{
+					Logger::fromContainer($container)
+						->debug('[TG] Update received', [
+							'id' => $update->update_id
+						]);
+				}
 			}
 		});
 	}

@@ -11,6 +11,7 @@ namespace WildPHP\Modules\TGRelay;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use unreal4u\TelegramAPI\InternalFunctionality\TelegramDocument;
+use unreal4u\TelegramAPI\InternalFunctionality\TelegramResponse;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
@@ -152,7 +153,7 @@ class UpdateHandler
 	public function photo(Update $update, TgLog $telegram, string $channel)
 	{
 		// Get the largest size.
-		$photoSizeArray = (array) $update->message->photo->getIterator();
+		$photoSizeArray = (array) $update->message->photo;
 		$file_id = end($photoSizeArray)->file_id;
 		$this->genericDownloadableFile($update, $telegram, $channel, $file_id, 'uploaded a picture');
 	}
@@ -351,6 +352,11 @@ class UpdateHandler
 		function (\Exception $e)
 		{
 			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
+		});
+		
+		$promise->then(null, function (TelegramResponse $response)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $response->getException()->getMessage());
 		});
 
 		return $deferred->promise();
