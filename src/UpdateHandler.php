@@ -16,7 +16,6 @@ use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
 use unreal4u\TelegramAPI\Telegram\Types\User;
-use WildPHP\Core\Channels\ChannelCollection;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
@@ -382,6 +381,9 @@ class UpdateHandler
 	 */
 	public function genericDownloadableFile(Update $update, TgLog $telegram, string $channel, $file_id, string $fileSpecificMessage)
 	{
+		if (empty($channel))
+			return;
+		
 		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
 
 		$promise->then(function (ExtendedTelegramDocument $file) use ($update, $channel, $fileSpecificMessage)
@@ -442,10 +444,6 @@ class UpdateHandler
 		$chat_id = $update->message->chat->id;
 		$channel = $this->getChannelMap()
 			->findChannelForID($chat_id);
-
-		// Don't bother processing if we aren't in the channel...
-		if (empty($channel) || !ChannelCollection::fromContainer($this->getContainer())->containsChannelName($channel))
-			return;
 
 		$type = Utils::getUpdateType($update);
 
