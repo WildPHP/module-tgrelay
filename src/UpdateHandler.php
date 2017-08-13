@@ -442,7 +442,7 @@ class UpdateHandler
 			return;
 
 		$chat_id = $update->message->chat->id;
-		$channel = $this->getChannelMap()
+		$channel = (string) $this->getChannelMap()
 			->findChannelForID($chat_id);
 
 		$type = Utils::getUpdateType($update);
