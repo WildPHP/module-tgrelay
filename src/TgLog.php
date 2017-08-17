@@ -38,7 +38,7 @@ class TgLog extends \unreal4u\TelegramAPI\TgLog implements ComponentInterface
 			$basePath . '/' . $idHash . '/documents',
 			$basePath . '/' . $idHash . '/animations',
 			$basePath . '/' . $idHash . '/stickers',
-			$basePath . '/' . $idHash . '/video',
+			$basePath . '/' . $idHash . '/videos',
 			$basePath . '/' . $idHash . '/voice'
 		];
 
