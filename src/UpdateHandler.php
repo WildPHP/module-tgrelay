@@ -16,6 +16,7 @@ use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
 use unreal4u\TelegramAPI\Telegram\Types\User;
+use WildPHP\Core\Channels\ChannelCollection;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
@@ -444,6 +445,9 @@ class UpdateHandler
 		$chat_id = $update->message->chat->id;
 		$channel = (string) $this->getChannelMap()
 			->findChannelForID($chat_id);
+		
+		if (!empty($channel) && !ChannelCollection::fromContainer($this->getContainer())->findByChannelName($channel))
+			return;
 
 		$type = Utils::getUpdateType($update);
 
