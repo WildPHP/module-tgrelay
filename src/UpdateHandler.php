@@ -8,7 +8,9 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
+use React\Promise\Deferred;
+use React\Promise\PromiseInterface;
+use unreal4u\TelegramAPI\InternalFunctionality\TelegramDocument;
 use unreal4u\TelegramAPI\Telegram\Methods\GetFile;
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
 use unreal4u\TelegramAPI\Telegram\Types\File;
@@ -41,7 +43,7 @@ class UpdateHandler
 	protected $channelMap;
 
 	/**
-	 * @var TelegramTypes
+	 * @var User
 	 */
 	protected $self;
 
@@ -50,10 +52,10 @@ class UpdateHandler
 	 *
 	 * @param ComponentContainer $container
 	 * @param ChannelMap $channelMap
-	 * @param TelegramTypes $self
+	 * @param User $self
 	 * @param string $baseURL
 	 */
-	public function __construct(ComponentContainer $container, ChannelMap $channelMap, TelegramTypes $self, string $baseURL)
+	public function __construct(ComponentContainer $container, ChannelMap $channelMap, User $self, string $baseURL)
 	{
 		$this->baseURL = $baseURL;
 		$this->setContainer($container);
@@ -131,7 +133,7 @@ class UpdateHandler
 			$originIsBot = empty($update->message->reply_to_message) ? false :
 				$update->message->reply_to_message->from->username == $this->self->username;
 			if (($replyUsername = Utils::getReplyUsername($update, $originIsBot)))
-				$message = '@' . TextFormatter::consistentStringColor($replyUsername) . ': ' . $message;
+				$message = '@' . $replyUsername . ': ' . $message;
 
 			$message = '[TG] <' . TextFormatter::consistentStringColor(Utils::getUsernameForUser($update->message->from)) . '> ' . $message;
 
@@ -150,7 +152,8 @@ class UpdateHandler
 	public function photo(Update $update, TgLog $telegram, string $channel)
 	{
 		// Get the largest size.
-		$file_id = end($update->message->photo)->file_id;
+		$photoSizeArray = (array) $update->message->photo;
+		$file_id = end($photoSizeArray)->file_id;
 		$this->genericDownloadableFile($update, $telegram, $channel, $file_id, 'uploaded a picture');
 	}
 
@@ -290,23 +293,6 @@ class UpdateHandler
 	 * @param TgLog $telegram
 	 * @param string $channel
 	 */
-	public function new_chat_member(Update $update, TgLog $telegram, string $channel)
-	{
-		$member = $update->message->new_chat_member;
-		$from = Utils::getUsernameForUser($update->message->from);
-		$nickname = $member->username ?? trim($member->first_name . ' ' . $member->last_name);
-		$msg = '[TG] ' . TextFormatter::consistentStringColor($nickname) . ' joined the Telegram group (added by ' . TextFormatter::consistentStringColor($from) . '), say hello!';
-
-		$privmsg = new PRIVMSG($channel, $msg);
-		$privmsg->setMessageParameters(['relay_ignore']);
-		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
-	}
-
-	/**
-	 * @param Update $update
-	 * @param TgLog $telegram
-	 * @param string $channel
-	 */
 	public function left_chat_member(Update $update, TgLog $telegram, string $channel)
 	{
 		$member = $update->message->left_chat_member;
@@ -323,7 +309,7 @@ class UpdateHandler
 	 * @param TgLog $telegram
 	 * @param $file_id
 	 *
-	 * @return \React\Promise\PromiseInterface
+	 * @return PromiseInterface
 	 */
 	public function downloadFileForUpdate(Update $update, TgLog $telegram, $file_id)
 	{
@@ -332,28 +318,42 @@ class UpdateHandler
 
 		$getFile = new GetFile();
 		$getFile->file_id = $file_id;
+		
+		Logger::fromContainer($this->getContainer())->debug('[TG] Attempting to download file...', ['id' => $file_id]);
 
-		/** @var File $file */
-		$file = $telegram
-			->performApiRequest($getFile);
+		$deferred = new Deferred();
 
-		$fullPath = $basePath . '/' . $file->file_path;
-		$promise = $telegram->downloadFileAsync($file);
-
-		$promise->then(function (DownloadedFile $file) use ($update, $basePath, $chat_id, $fullPath)
+		$promise = $telegram->performApiRequest($getFile);
+		
+		$promise->then(function (File $file) use ($telegram, $basePath, $deferred, $update, $chat_id)
 		{
-			if (!@touch($fullPath) || !@file_put_contents($fullPath, $file->getBody()))
-				throw new DownloadException();
+			Logger::fromContainer($this->getContainer())->debug('[TG] File requested, initiating download...', ['id' => $file->file_id]);
+			$filePath = $file->file_path;
+			$fullPath = $basePath . '/' . $file->file_path;
+			$promise = $telegram->downloadFile($file);
 
-			$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($file->getFile()->file_path));
+			$promise->then(function (TelegramDocument $file) use ($update, $basePath, $chat_id, $fullPath, $filePath, $deferred)
+			{
+				if (!touch($fullPath) || !file_put_contents($fullPath, $file->contents))
+					throw new DownloadException();
 
-			$file->setPath($fullPath);
-			$file->setUri($uri);
+				$uri = $this->baseURL . '/' . sha1($chat_id) . '/' . str_replace('%2F', '/', urlencode($filePath));
 
-			return $file;
+				$file = new ExtendedTelegramDocument($file, $uri, $fullPath);
+				$deferred->resolve($file);
+				Logger::fromContainer($this->getContainer())->debug('[TG] Download complete!', ['id' => $file->getPath()]);
+			},
+			function (\Exception $e) use ($deferred)
+			{
+				$deferred->reject(new DownloadException('An error occurred while downloading', 0, $e));
+			});
+		},
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
 		});
 
-		return $promise;
+		return $deferred->promise();
 	}
 
 	/**
@@ -368,7 +368,8 @@ class UpdateHandler
 
 		$sendMessage = new SendMessage();
 		$sendMessage->chat_id = $update->message->chat->id;
-		$sendMessage->text = 'Unable to relay message to IRC because it is not supported';
+		$sendMessage->reply_to_message_id = $update->message->message_id;
+		$sendMessage->text = 'Unable to relay message to IRC because its type is not supported';
 		$telegram->performApiRequest($sendMessage);
 	}
 
@@ -381,14 +382,27 @@ class UpdateHandler
 	 */
 	public function genericDownloadableFile(Update $update, TgLog $telegram, string $channel, $file_id, string $fileSpecificMessage)
 	{
+		if (empty($channel))
+			return;
+		
 		$promise = $this->downloadFileForUpdate($update, $telegram, $file_id);
 
-		$promise->then(function (DownloadedFile $file) use ($update, $channel, $fileSpecificMessage)
+		$promise->then(function (ExtendedTelegramDocument $file) use ($update, $channel, $fileSpecificMessage)
 		{
 			$msg = $this->formatDownloadMessage($update, $file->getUri(), $fileSpecificMessage);
 			$privmsg = new PRIVMSG($channel, $msg);
 			$privmsg->setMessageParameters(['relay_ignore']);
 			Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
+		},
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
+		});
+		
+		$promise->then(null,
+		function (\Exception $e)
+		{
+			Logger::fromContainer($this->getContainer())->debug('[TG] Error while downloading file: ' . $e->getMessage());
 		});
 	}
 
@@ -402,7 +416,7 @@ class UpdateHandler
 	protected function formatDownloadMessage(Update $update, string $url, string $fileSpecificMessage)
 	{
 		$sender = TextFormatter::consistentStringColor(Utils::getUsernameForUser($update->message->from));
-		$originIsBot = $update->message->reply_to_message->from->username == $this->self->username;
+		$originIsBot = !empty($update->message->reply_to_message) && $update->message->reply_to_message->from->username == $this->self->username;
 		$reply = TextFormatter::consistentStringColor(Utils::getReplyUsername($update, $originIsBot) ?? '');
 		$caption = Utils::getCaption($update);
 
@@ -429,11 +443,10 @@ class UpdateHandler
 			return;
 
 		$chat_id = $update->message->chat->id;
-		$channel = $this->getChannelMap()
+		$channel = (string) $this->getChannelMap()
 			->findChannelForID($chat_id);
-
-		// Don't bother processing if we aren't in the channel...
-		if (!empty($channel) && !ChannelCollection::fromContainer($this->getContainer())->containsChannelName($channel))
+		
+		if (!empty($channel) && !ChannelCollection::fromContainer($this->getContainer())->findByChannelName($channel))
 			return;
 
 		$type = Utils::getUpdateType($update);

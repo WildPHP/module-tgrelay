@@ -37,7 +37,7 @@ class FileServer
 			$path = WPHP_ROOT_DIR . 'tgstorage' . $path;
 
 			if (!file_exists($path) || is_dir($path))
-				return new Response(404, ['Content-Type' => 'text/plain'], '404: Not Found');
+				return new Response(404, ['Content-Type' => 'text/plain'], '');
 
 			return new Response(
 				200,

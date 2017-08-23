@@ -9,20 +9,18 @@
         }
     ],
     "require": {
-        "unreal4u/telegram-api": "~2.4",
+        "unreal4u/telegram-api": "dev-master",
         "react/http": "^0.7",
         "ext-fileinfo": "*",
         "yoshi2889/collections": "^0.1",
         "yoshi2889/container": "^0.1",
-        "yoshi2889/validation-closures": "^0.1",
+        "yoshi2889/validation-closures": "^0.2",
         "yoshi2889/tasks": "^0.1",
-        "react/http-client": "v0.5.2"
+        "react/http-client": "^0.5"
     },
     "autoload": {
         "psr-4": {
             "WildPHP\\Modules\\TGRelay\\": "src"
         }
-    },
-    "minimum-stability": "alpha",
-    "prefer-stable": true
+    }
 }
