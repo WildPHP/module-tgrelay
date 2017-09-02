@@ -8,6 +8,9 @@
 
 namespace WildPHP\Modules\TGRelay;
 
+use WildPHP\Core\Commands\Command;
+use WildPHP\Core\Commands\ParameterStrategy;
+use WildPHP\Core\Commands\StringParameter;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
@@ -26,15 +29,20 @@ class TGCommands
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
-		$events = [
-			'command' => 'telegram.command.command',
-			'me' => 'telegram.command.me',
-		];
 
-		foreach ($events as $callback => $event)
-		{
-			TGCommandHandler::fromContainer($container)->registerCommand($callback, [$this, $callback . 'Command'], null, 0, -1);
-		}
+		TGCommandHandler::fromContainer($container)->registerCommand('command', new Command(
+			[$this, 'commandCommand'],
+			new ParameterStrategy(1, -1, [
+				'string' => new StringParameter()
+			], true)
+		), ['cmd']);
+
+		TGCommandHandler::fromContainer($container)->registerCommand('me', new Command(
+			[$this, 'meCommand'],
+			new ParameterStrategy(1, -1, [
+				'string' => new StringParameter()
+			], true)
+		));
 	}
 
 	/**
@@ -47,7 +55,7 @@ class TGCommands
 	public function commandCommand(TgLog $telegram, $chat_id, array $args, string $channel, string $username)
 	{
 		Logger::fromContainer($this->getContainer())->debug('Command command called');
-		$command = implode(' ', $args);
+		$command = $args['string'];
 
 		$msg1 = '[TG] ' . $username . ' issued command: ' . $command;
 		$privmsg = new PRIVMSG($channel, $msg1);
@@ -65,9 +73,9 @@ class TGCommands
 	 */
 	public function meCommand(TgLog $telegram, $chat_id, array $args, string $channel, string $username)
 	{
-		$command = implode(' ', $args);
+		$string = $args['string'];
 
-		$msg = '[TG] *' . $username . ' ' . $command . '*';
+		$msg = '[TG] *' . $username . ' ' . $string . '*';
 		$privmsg = new PRIVMSG($channel, $msg);
 		$privmsg->setMessageParameters(['relay_ignore']);
 		Queue::fromContainer($this->getContainer())->insertMessage($privmsg);
