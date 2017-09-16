@@ -8,13 +8,15 @@
 
 namespace WildPHP\Modules\TGRelay;
 
-
 use unreal4u\TelegramAPI\Telegram\Methods\SendMessage;
+use WildPHP\Core\Commands\Command;
 use WildPHP\Core\Commands\CommandHandler;
+use WildPHP\Core\Commands\ParameterStrategy;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\IRCMessages\PRIVMSG;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\EventEmitter;
+use WildPHP\Core\Logger\Logger;
 use Yoshi2889\Collections\Collection;
 use Yoshi2889\Container\ComponentTrait;
 
@@ -53,7 +55,6 @@ class TGCommandHandler extends CommandHandler
 	 * @param $chat_id
 	 * @param $channel
 	 * @param $username
-	 *
 	 * @param string $coloredUsername
 	 *
 	 * @return bool
@@ -77,16 +78,39 @@ class TGCommandHandler extends CommandHandler
 
 		$dictionary = $this->getCommandCollection();
 
-		if (!$dictionary->offsetExists($command))
+		if (!$dictionary->offsetExists($command) && !array_key_exists($command, $this->aliases))
 			return false;
 
-		$commandObject = $dictionary[$command];
+		/** @var Command $commandObject */
+		$commandObject = $dictionary[$command] ?? $this->aliases[$command];
 
-		$maximumArguments = $commandObject->getMaximumArguments();
-		if (count($parts) < $commandObject->getMinimumArguments() || ($maximumArguments != -1 && count($parts) > $maximumArguments))
+		$parameterStrategies = $commandObject->getParameterStrategies();
+		$strategy = false;
+		$originalArgs = $parts;
+
+		/** @var ParameterStrategy $parameterStrategy */
+		foreach ($parameterStrategies as $parameterStrategy)
+		{
+			try
+			{
+				$parts = $parameterStrategy->validateArgumentArray($originalArgs);
+
+				if (!$parameterStrategy->validateArgumentCount($parts))
+					throw new \InvalidArgumentException('Argument count mismatch');
+
+				$strategy = $parameterStrategy;
+				break;
+			}
+			catch (\InvalidArgumentException $e)
+			{
+				Logger::fromContainer($this->getContainer())->debug('[TG] Not applying command strategy; ' . $e->getMessage());
+			}
+		}
+
+		if (!$strategy)
 		{
 			$sendMessage = new SendMessage();
-			$sendMessage->text = 'Invalid argument count. (not in range of ' . $commandObject->getMinimumArguments() . ' =< x =< ' . $maximumArguments . ')';
+			$sendMessage->text = 'Invalid arguments.';
 			$sendMessage->chat_id = $chat_id;
 			$telegram->performApiRequest($sendMessage);
 

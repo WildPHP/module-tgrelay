@@ -9,10 +9,12 @@
 namespace WildPHP\Modules\TGRelay;
 
 use unreal4u\TelegramAPI\Abstracts\TelegramTypes;
+use unreal4u\TelegramAPI\HttpClientRequestHandler;
 use unreal4u\TelegramAPI\Telegram\Methods\GetMe;
 use unreal4u\TelegramAPI\Telegram\Methods\GetUpdates;
 use unreal4u\TelegramAPI\Telegram\Types\Custom\UpdatesArray;
 use unreal4u\TelegramAPI\Telegram\Types\Update;
+use unreal4u\TelegramAPI\Telegram\Types\User;
 use ValidationClosures\Types;
 use WildPHP\Core\Commands\Command;
 use WildPHP\Core\ComponentContainer;
@@ -63,37 +65,54 @@ class TGRelay extends BaseModule
 	public function __construct(ComponentContainer $container)
 	{
 		$this->setContainer($container);
-		$channelMap = Configuration::fromContainer($container)['telegram']['channels'];
-		$botID = Configuration::fromContainer($container)['telegram']['botID'];
-		$baseURI = Configuration::fromContainer($container)['telegram']['uri'];
-		$port = Configuration::fromContainer($this->getContainer())['telegram']['port'];
-		$listenOn = Configuration::fromContainer($this->getContainer())['telegram']['listenOn'];
-		$this->baseURI = $baseURI;
+		$telegramConfig = Configuration::fromContainer($container)['telegram'] ?? [];
+		
+		if (empty($telegramConfig))
+		{
+			Logger::fromContainer($container)->warning('Unable to initialize Telegram module; make sure you have included all configuration ' .
+			'options in your config.neon');
+			return;
+		}
+		
+		$channelMap = $telegramConfig['channels'];
+		$botID = $telegramConfig['botID'];
+		$this->baseURI = $telegramConfig['uri'];
+		$port = $telegramConfig['port'];
+		$listenOn = $telegramConfig['listenOn'];
 
-		$this->botObject = new TgLog($botID, $container->getLoop());
-		$this->self = $this->botObject->performApiRequest(new GetMe());
-		$container->add($this->botObject);
-
-		$channelMap = $this->setupChannelMap($channelMap);
-		new UpdateHandler($container, $channelMap, $this->self, $baseURI);
-		new IrcMessageHandler($container, $this->botObject, $channelMap);
-		new FileServer($this->getContainer(), $port, $listenOn);
+		$httpClientHandler = new HttpClientRequestHandler($container->getLoop());
+		$this->botObject = new TgLog($botID, $httpClientHandler);
 
 		$commandHandler = new TGCommandHandler($container, new Collection(Types::instanceof(Command::class)));
 		$container->add($commandHandler);
 		new TGCommands($container);
 
-		$this->taskController = new TaskController($container->getLoop());
-		$callbackTask = new CallbackTask([$this, 'fetchTelegramMessages'], 0, [$container]);
-		$task = new RepeatableTask($callbackTask, 1);
-		$this->taskController->add($task);
-
 		EventEmitter::fromContainer($container)
-			->on('wildphp.init-modules.after', function () use ($commandHandler, $container)
-			{
+			->on('wildphp.init-modules.after', function () use ($commandHandler, $container) {
 				// Emit an event to let other modules know that commands can be added.
 				EventEmitter::fromContainer($container)
 					->emit('telegram.commands.add', [$commandHandler]);
+			});
+
+		// Test if the connection worked. Added bonus of getting some info about ourselves.
+		$promise = $this->botObject->performApiRequest(new GetMe());
+		$promise->then(
+			function (User $result) use ($channelMap, $container, $port, $listenOn) {
+				$container->add($this->botObject);
+
+				$this->self = $result;
+				$channelMapObject = $this->setupChannelMap($channelMap);
+				new UpdateHandler($container, $channelMapObject, $this->self, $this->baseURI);
+				new IrcMessageHandler($container, $this->botObject, $channelMapObject);
+				new FileServer($this->getContainer(), $port, $listenOn);
+
+				$this->taskController = new TaskController($container->getLoop());
+				$this->taskController->add(
+					new RepeatableTask(
+						new CallbackTask([$this, 'fetchTelegramMessages'], 0, [$container]),
+						5
+					)
+				);
 			});
 	}
 
@@ -127,35 +146,42 @@ class TGRelay extends BaseModule
 		$getUpdates = new GetUpdates();
 		$getUpdates->offset = $this->getLastUpdateID();
 
-		try
-		{
-			/** @var UpdatesArray $updates */
-			$updates = $tgLog->performApiRequest($getUpdates);
+		$promise = $tgLog->performApiRequest($getUpdates);
 
+		$promise->then(function (UpdatesArray $updates) use ($container, $tgLog) {
 			if (empty($updates->data))
 				return;
-
-			$lastUpdateID = 0;
+			
 			/** @var Update $update */
-			foreach ($updates->traverseObject() as $update)
+			foreach ($updates->getIterator() as $update)
 			{
-				EventEmitter::fromContainer($container)
-					->emit('telegram.msg.in', [$update, $tgLog]);
-
-				Logger::fromContainer($container)
-					->debug('[TG] Update received', [
-						'id' => $update->update_id
-					]);
-
-				$lastUpdateID = $update->update_id;
+				$this->setLastUpdateID($update->update_id + 1);
+				
+				try
+				{
+					EventEmitter::fromContainer($container)
+						->emit('telegram.msg.in', [$update, $tgLog]);
+				}
+				catch (\Throwable $e)
+				{
+					Logger::fromContainer($container)
+						->warning('[TG] Error while processing update!', [
+							'id' => $update->update_id,
+							'message' => $e->getMessage(),
+							'exception' => get_class($e)
+						]);
+				}
+				finally
+				{
+					Logger::fromContainer($container)
+						->debug('[TG] Update received', [
+							'id' => $update->update_id,
+							'chat_id' => $update->message->chat->id ?? 0,
+							'chat_name' => (!empty($update->message->chat->title) ? $update->message->chat->title : ($update->message->chat->username ?? 'N/A'))
+						]);
+				}
 			}
-
-			$this->setLastUpdateID($lastUpdateID + 1);
-		}
-		catch (\Exception $e)
-		{
-			return;
-		}
+		});
 	}
 
 	/**
