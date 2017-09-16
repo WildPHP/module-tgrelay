@@ -55,7 +55,6 @@ class TGCommandHandler extends CommandHandler
 	 * @param $chat_id
 	 * @param $channel
 	 * @param $username
-	 *
 	 * @param string $coloredUsername
 	 *
 	 * @return bool
