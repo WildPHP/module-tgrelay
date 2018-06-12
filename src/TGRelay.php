@@ -144,7 +144,7 @@ class TGRelay extends BaseModule
 	{
 		$tgLog = $this->getBotObject();
 		$getUpdates = new GetUpdates();
-		$getUpdates->offset = $this->getLastUpdateID();
+		$getUpdates->offset = $this->getLastUpdateID() + 1;
 
 		$promise = $tgLog->performApiRequest($getUpdates);
 
@@ -155,7 +155,12 @@ class TGRelay extends BaseModule
 			/** @var Update $update */
 			foreach ($updates->getIterator() as $update)
 			{
-				$this->setLastUpdateID($update->update_id + 1);
+				$id = $update->update_id;
+
+				if ($id <= $this->getLastUpdateID())
+					continue;
+
+				$this->setLastUpdateID($update->update_id);
 				
 				try
 				{
